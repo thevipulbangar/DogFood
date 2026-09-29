@@ -6,6 +6,7 @@
 // the schema starts changing existing columns instead of just adding.
 
 import pg from "pg";
+import { readFile } from "node:fs/promises";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -18,6 +19,14 @@ for (let i = 0; ; i++) {
     console.log(`migrate: waiting for database... (${i + 1}/10)`);
     await new Promise((r) => setTimeout(r, 2000));
   }
+}
+
+// Hosts without the Docker init dir (e.g. Render) start with an empty
+// database: apply schema.sql once when the base tables are missing.
+const { rows } = await pool.query("SELECT to_regclass('public.users') AS t");
+if (!rows[0].t) {
+  await pool.query(await readFile(new URL("./schema.sql", import.meta.url), "utf8"));
+  console.log("migrate: applied schema.sql");
 }
 
 await pool.query(`

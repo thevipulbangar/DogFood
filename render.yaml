@@ -1,0 +1,33 @@
+databases:
+  - name: dogfood-db
+    plan: free
+
+services:
+  - type: web
+    name: dogfood-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node db/migrate.js && node db/seed.js && node src/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dogfood-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: APP_URL
+        value: https://dogfood-frontend.onrender.com
+
+  - type: web
+    name: dogfood-frontend
+    runtime: node
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://dogfood-backend.onrender.com
