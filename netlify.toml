@@ -7,6 +7,9 @@
   base = "frontend"
   command = "npm run build"
   publish = ".next"
+  # Always build: NEXT_PUBLIC_API_URL is baked in at build time, so an
+  # environment-variable change needs a rebuild even with no file changes.
+  ignore = "exit 1"
 
 # Without this, Netlify uploads .next as plain static files (no server
 # functions) and every route 404s.
