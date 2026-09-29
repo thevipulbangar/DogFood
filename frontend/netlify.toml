@@ -1,0 +1,11 @@
+# Deploys only the Next.js frontend. The backend (Express + Postgres) is
+# NOT deployable to Netlify — it has no support for a long-running server
+# process or a persistent database. See DEPLOYMENT.md in the repo root
+# for the full picture: this file gets the frontend onto Netlify, but you
+# still need to host backend/ somewhere that runs a normal Node process
+# (Railway, Render, Fly.io, a VPS...) and point NEXT_PUBLIC_API_URL at it.
+[build]
+  command = "npm run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
