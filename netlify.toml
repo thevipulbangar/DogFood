@@ -7,3 +7,8 @@
   base = "frontend"
   command = "npm run build"
   publish = ".next"
+
+# Without this, Netlify uploads .next as plain static files (no server
+# functions) and every route 404s.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
