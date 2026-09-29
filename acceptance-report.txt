@@ -158,10 +158,18 @@ TIER 3 — PUBLIC
     constraint (votes.submission_id, votes.voter_id) — not just an API
     check, so it holds even under concurrent requests
   - Voting excludes drafts and the caller's own team's submission
-  - Real frontend: RealVotingBoard.tsx at /voting
+  - Genuinely configurable per event, not just "exists": events.voting_open
+    (organizer can close voting entirely) and events.vote_rate_limit
+    (per-participant votes/minute, organizer-adjustable) are both real
+    columns, editable from the event form at /admin, and enforced by
+    the vote endpoint (403 "voting is closed" / 429 using that event's
+    own limit rather than one hardcoded value)
+  - Real frontend: RealVotingBoard.tsx at /voting, shows a "voting is
+    closed" state distinct from "no projects yet"
   - Test: voting.test.js "participant can vote once, a second vote on
     the same project is rejected as duplicate"; "cannot vote for your
-    own team's submission"
+    own team's submission"; "voting_open=false closes voting for an
+    event, votes are rejected with 403"
 
 [PASS] Comments
   - GET/POST /api/voting/:id/comments, any authenticated role, 2000

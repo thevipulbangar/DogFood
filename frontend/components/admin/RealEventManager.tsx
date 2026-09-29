@@ -14,11 +14,13 @@ const toLocalDate = (iso?: string | null) => (iso ? iso.slice(0, 10) : "");
 type FormState = {
   name: string; description: string; start_date: string; end_date: string;
   submission_deadline: string; tracks: string[]; prizes: string;
+  voting_open: boolean; vote_rate_limit: string;
 };
 
 const EMPTY_FORM: FormState = {
   name: "", description: "", start_date: "", end_date: "",
   submission_deadline: "", tracks: [], prizes: "",
+  voting_open: true, vote_rate_limit: "10",
 };
 
 function eventToForm(e: EventItem): FormState {
@@ -27,6 +29,7 @@ function eventToForm(e: EventItem): FormState {
     start_date: toLocalDate(e.start_date), end_date: toLocalDate(e.end_date),
     submission_deadline: toLocalInput(e.submission_deadline),
     tracks: e.tracks ?? [], prizes: e.prizes ?? "",
+    voting_open: e.voting_open, vote_rate_limit: String(e.vote_rate_limit),
   };
 }
 
@@ -99,6 +102,15 @@ function EventForm({ initial, onSubmit, onCancel, submitting }: {
       <Field label="Prizes" htmlFor="ev-prizes">
         <textarea id="ev-prizes" rows={2} className={cn(fieldClass, "py-2")} value={form.prizes} onChange={(e) => set("prizes", e.target.value)} />
       </Field>
+      <div className="grid grid-cols-[1fr_auto] items-end gap-4 rounded-md border border-line p-3">
+        <Field label="Vote rate limit" htmlFor="ev-rate" hint="max votes per participant per minute">
+          <input id="ev-rate" type="number" min={1} className={cn(fieldClass, "h-10")} value={form.vote_rate_limit} onChange={(e) => set("vote_rate_limit", e.target.value)} />
+        </Field>
+        <label className="mb-1 flex items-center gap-2 text-[13px] text-fg-2">
+          <input type="checkbox" checked={form.voting_open} onChange={(e) => set("voting_open", e.target.checked)} />
+          Voting open
+        </label>
+      </div>
       <div className="flex gap-2 pt-2">
         <Button type="submit" disabled={submitting}>
           <Save size={16} className="mr-1.5" /> {submitting ? "Saving…" : "Save"}
@@ -144,6 +156,8 @@ export function RealEventManager() {
         submission_deadline: new Date(form.submission_deadline).toISOString(),
         tracks: form.tracks,
         prizes: form.prizes || undefined,
+        voting_open: form.voting_open,
+        vote_rate_limit: Number(form.vote_rate_limit) || 10,
       });
       toast({ tone: "ok", title: "Event created", body: form.name });
       setShowCreate(false);
@@ -166,6 +180,8 @@ export function RealEventManager() {
         submission_deadline: new Date(form.submission_deadline).toISOString(),
         tracks: form.tracks,
         prizes: form.prizes,
+        voting_open: form.voting_open,
+        vote_rate_limit: Number(form.vote_rate_limit) || 10,
       });
       toast({ tone: "ok", title: "Event updated" });
       setEditingId(null);
@@ -217,6 +233,7 @@ export function RealEventManager() {
                     {(e.tracks ?? []).length === 0 && <span className="text-xs text-white/40">No tracks configured</span>}
                   </div>
                   {e.prizes && <p className="whitespace-pre-line text-sm text-white/60">{e.prizes}</p>}
+                  <Badge tone={e.voting_open ? "ok" : "steel"}>{e.voting_open ? `Voting open · ${e.vote_rate_limit}/min limit` : "Voting closed"}</Badge>
                   <button className={cn(fieldClass, "h-8 w-auto border-none bg-transparent px-0 text-sm text-accent")} onClick={() => setEditingId(e.id)}>
                     <Pencil size={13} className="mr-1 inline" /> Edit
                   </button>

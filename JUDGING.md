@@ -148,6 +148,13 @@ an audit trail of every vote/rejection) is covered in full in
 defended against (Sybil accounts, primarily) rather than implying more
 coverage than actually exists.
 
+Voting is configurable per event, not a single global on/off switch:
+`events.voting_open` (default `true`) lets an organizer close voting
+entirely (e.g. once judging starts), and `events.vote_rate_limit`
+(default `10`/minute) lets them raise or lower the per-participant rate
+limit instead of it being one hardcoded constant for every instance.
+Both are editable from the event form at `/admin`.
+
 ## API summary
 
 | Endpoint | Role | Purpose |

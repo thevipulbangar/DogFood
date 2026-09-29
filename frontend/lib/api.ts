@@ -26,6 +26,7 @@ export type EventItem = {
   id: number; name: string; description: string | null;
   start_date: string | null; end_date: string | null; submission_deadline: string;
   tracks: string[]; prizes: string | null; created_at: string;
+  results_published: boolean; voting_open: boolean; vote_rate_limit: number;
 };
 export type TeamWithDetail = Team & { members: TeamMember[]; submission: Submission | null };
 
@@ -50,6 +51,7 @@ export type VotingFeedItem = {
   id: number; title: string | null; description: string | null; track: string | null;
   repo_url: string | null; demo_url: string | null; team_name: string; has_voted: boolean;
 };
+export type VotingFeed = { voting_open: boolean; projects: VotingFeedItem[] };
 export type Comment = { id: number; body: string; created_at: string; author_name: string; author_role: string };
 export type VotingResultRow = { submission_id: number; title: string; team_name: string; vote_count: number };
 export type AuditEntry = { id: number; action: string; object: string | null; metadata: unknown; created_at: string; actor_name: string | null; actor_role: string | null };
@@ -88,10 +90,12 @@ export const api = {
   createEvent: (event: {
     name: string; description?: string; start_date?: string; end_date?: string;
     submission_deadline: string; tracks?: string[]; prizes?: string;
+    voting_open?: boolean; vote_rate_limit?: number;
   }): Promise<EventItem> => request("/api/events", { method: "POST", body: JSON.stringify(event) }),
   updateEvent: (id: number, event: Partial<{
     name: string; description: string; start_date: string; end_date: string;
     submission_deadline: string; tracks: string[]; prizes: string;
+    voting_open: boolean; vote_rate_limit: number;
   }>): Promise<EventItem> => request(`/api/events/${id}`, { method: "PUT", body: JSON.stringify(event) }),
   getTeams: (event_id?: number): Promise<TeamWithDetail[]> =>
     request(`/api/teams${event_id ? `?event_id=${event_id}` : ""}`),
@@ -155,7 +159,7 @@ export const api = {
   },
 
   // ── T3: public voting, comments, audit trail ────────────────────────
-  getVotingFeed: (event_id: number): Promise<VotingFeedItem[]> => request(`/api/voting/feed?event_id=${event_id}`),
+  getVotingFeed: (event_id: number): Promise<VotingFeed> => request(`/api/voting/feed?event_id=${event_id}`),
   castVote: (submissionId: number) => request(`/api/voting/${submissionId}/vote`, { method: "POST" }),
   getComments: (submissionId: number): Promise<Comment[]> => request(`/api/voting/${submissionId}/comments`),
   postComment: (submissionId: number, body: string): Promise<Comment> =>

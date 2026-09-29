@@ -184,6 +184,18 @@ organizer/admin calls `POST /api/voting/publish`. Judging results
 (`/api/judging/results`) are a separate endpoint and are unaffected by
 this flag; it only gates the T3 community-vote view.
 
+## `events.voting_open` / `events.vote_rate_limit` (T3)
+
+Two more columns on `events`: `voting_open` (boolean, default `true` —
+matches the original always-on behavior) and `vote_rate_limit` (integer,
+default `10`, `CHECK (vote_rate_limit > 0)` — max votes per participant
+per rolling 60-second window). Both are organizer/admin-editable through
+`PUT /api/events/:id` and the event form in `RealEventManager.tsx`.
+`GET /api/voting/feed` reports `voting_open` explicitly so the frontend
+can show "voting is closed" rather than an empty list, and
+`POST /api/voting/:id/vote` reads the event's own `vote_rate_limit`
+instead of a single hardcoded constant for every instance.
+
 ## Import / export paths
 
 - **Export:** `GET /api/gallery` returns submitted projects as JSON

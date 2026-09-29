@@ -126,6 +126,14 @@ CREATE TABLE scores (
 -- unaffected by this flag — it only gates the T3 community view.
 ALTER TABLE events ADD COLUMN results_published BOOLEAN NOT NULL DEFAULT false;
 
+-- Voting is on by default (matches the previous always-on behavior) so
+-- existing/seeded events don't silently lose voting on upgrade; an
+-- organizer can turn it off per event. The rate limit is per-event so an
+-- organizer running a bigger event can raise it instead of it being a
+-- single hardcoded constant for every instance.
+ALTER TABLE events ADD COLUMN voting_open BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE events ADD COLUMN vote_rate_limit INTEGER NOT NULL DEFAULT 10 CHECK (vote_rate_limit > 0);
+
 -- One vote per (submission, voter): the unique constraint is the primary
 -- duplicate-vote defense, enforced by the database, not just the API.
 -- Only participants may vote (checked in voting.js), and never for their

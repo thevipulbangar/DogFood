@@ -7,7 +7,14 @@ import { logAudit } from "../audit.js";
 export const votingRouter = Router();
 
 const RATE_LIMIT_WINDOW = "1 minute";
-const RATE_LIMIT_MAX = 10; // votes per voter per window — generous for a real user, tight for a script.
+
+async function getEventVotingConfig(eventId) {
+  const { rows } = await pool.query(
+    "SELECT voting_open, vote_rate_limit FROM events WHERE id = $1",
+    [eventId]
+  );
+  return rows[0] ?? null;
+}
 
 // ── Feed (participants only) ────────────────────────────────────────────
 
@@ -16,6 +23,10 @@ const RATE_LIMIT_MAX = 10; // votes per voter per window — generous for a real
 // includes drafts, and never includes the caller's own team's submission —
 // you can't vote for yourself. No vote counts are returned here: results
 // stay hidden until an organizer publishes them (see /results below).
+// Configurable per event: an organizer can close voting entirely
+// (events.voting_open) — the feed reports that instead of quietly
+// returning an empty list, so the frontend can show "voting is closed"
+// rather than "nothing to vote on".
 votingRouter.get(
   "/feed",
   requireAuth,
@@ -23,6 +34,10 @@ votingRouter.get(
   asyncHandler(async (req, res) => {
     const { event_id } = req.query;
     if (!event_id) return res.status(400).json({ error: "event_id is required" });
+
+    const config = await getEventVotingConfig(event_id);
+    if (!config) return res.status(404).json({ error: "event not found" });
+    if (!config.voting_open) return res.json({ voting_open: false, projects: [] });
 
     const { rows } = await pool.query(
       `SELECT submissions.id, submissions.title, submissions.description, submissions.track,
@@ -40,7 +55,7 @@ votingRouter.get(
        ORDER BY random()`,
       [event_id, req.user.id]
     );
-    res.json(rows);
+    res.json({ voting_open: true, projects: rows });
   })
 );
 
@@ -53,21 +68,29 @@ votingRouter.post(
   asyncHandler(async (req, res) => {
     const submissionId = Number(req.params.submissionId);
 
-    const { rows: recentVotes } = await pool.query(
-      `SELECT count(*)::int AS n FROM votes WHERE voter_id = $1 AND created_at > now() - interval '${RATE_LIMIT_WINDOW}'`,
-      [req.user.id]
-    );
-    if (recentVotes[0].n >= RATE_LIMIT_MAX) {
-      await logAudit(req.user.id, "RATE_LIMIT_TRIGGERED", `submission:${submissionId}`, { window: RATE_LIMIT_WINDOW, max: RATE_LIMIT_MAX });
-      return res.status(429).json({ error: "too many votes too quickly — slow down and try again shortly" });
-    }
-
     const { rows: subRows } = await pool.query(
-      "SELECT team_id, is_draft FROM submissions WHERE id = $1",
+      `SELECT submissions.team_id, submissions.is_draft, teams.event_id
+       FROM submissions JOIN teams ON teams.id = submissions.team_id
+       WHERE submissions.id = $1`,
       [submissionId]
     );
     if (subRows.length === 0) return res.status(404).json({ error: "submission not found" });
     if (subRows[0].is_draft) return res.status(400).json({ error: "cannot vote for a draft submission" });
+
+    const config = await getEventVotingConfig(subRows[0].event_id);
+    if (!config?.voting_open) {
+      return res.status(403).json({ error: "voting is closed for this event" });
+    }
+    const rateLimitMax = config.vote_rate_limit;
+
+    const { rows: recentVotes } = await pool.query(
+      `SELECT count(*)::int AS n FROM votes WHERE voter_id = $1 AND created_at > now() - interval '${RATE_LIMIT_WINDOW}'`,
+      [req.user.id]
+    );
+    if (recentVotes[0].n >= rateLimitMax) {
+      await logAudit(req.user.id, "RATE_LIMIT_TRIGGERED", `submission:${submissionId}`, { window: RATE_LIMIT_WINDOW, max: rateLimitMax });
+      return res.status(429).json({ error: "too many votes too quickly — slow down and try again shortly" });
+    }
 
     const { rows: myTeam } = await pool.query(
       "SELECT team_id FROM team_members WHERE user_id = $1 LIMIT 1",

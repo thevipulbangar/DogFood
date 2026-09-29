@@ -91,6 +91,56 @@ test("voting results: hidden from participants until an organizer publishes them
   assert.equal(visible.data.published, true);
 });
 
+test("voting_open=false closes voting for an event, votes are rejected with 403", async () => {
+  const adminToken = await login("admin@dogfood.dev");
+  const { data: createdEvent } = await api(
+    "POST",
+    "/api/events",
+    { name: `Closed Voting Event ${Date.now()}`, submission_deadline: new Date(Date.now() + 86400000).toISOString(), voting_open: false },
+    adminToken
+  );
+  assert.equal(createdEvent.voting_open, false);
+
+  const a = await makeSubmittedTeam(createdEvent.id, "closed-a");
+  const b = await makeSubmittedTeam(createdEvent.id, "closed-b");
+
+  const feed = await api("GET", `/api/voting/feed?event_id=${createdEvent.id}`, undefined, a.token);
+  assert.equal(feed.status, 200);
+  assert.equal(feed.data.voting_open, false);
+  assert.deepEqual(feed.data.projects, []);
+
+  const vote = await api("POST", `/api/voting/${b.submissionId}/vote`, undefined, a.token);
+  assert.equal(vote.status, 403);
+
+  const reopen = await api("PUT", `/api/events/${createdEvent.id}`, { voting_open: true }, adminToken);
+  assert.equal(reopen.status, 200);
+  assert.equal(reopen.data.voting_open, true);
+
+  const voteNow = await api("POST", `/api/voting/${b.submissionId}/vote`, undefined, a.token);
+  assert.equal(voteNow.status, 201);
+});
+
+test("vote_rate_limit is per-event and configurable", async () => {
+  const adminToken = await login("admin@dogfood.dev");
+  const { data: createdEvent } = await api(
+    "POST",
+    "/api/events",
+    { name: `Tight Rate Limit Event ${Date.now()}`, submission_deadline: new Date(Date.now() + 86400000).toISOString(), vote_rate_limit: 1 },
+    adminToken
+  );
+  assert.equal(createdEvent.vote_rate_limit, 1);
+
+  const a = await makeSubmittedTeam(createdEvent.id, "rate-a");
+  const b = await makeSubmittedTeam(createdEvent.id, "rate-b");
+  const c = await makeSubmittedTeam(createdEvent.id, "rate-c");
+
+  const first = await api("POST", `/api/voting/${b.submissionId}/vote`, undefined, a.token);
+  assert.equal(first.status, 201);
+
+  const second = await api("POST", `/api/voting/${c.submissionId}/vote`, undefined, a.token);
+  assert.equal(second.status, 429);
+});
+
 test("comments: any authenticated role can post and read", async () => {
   const adminToken = await login("admin@dogfood.dev");
   const { data: events } = await api("GET", "/api/events", undefined, adminToken);

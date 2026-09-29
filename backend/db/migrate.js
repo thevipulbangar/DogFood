@@ -83,6 +83,13 @@ await pool.query(`
 `);
 
 await pool.query(`
+  ALTER TABLE events ADD COLUMN IF NOT EXISTS voting_open BOOLEAN NOT NULL DEFAULT true
+`);
+await pool.query(`
+  ALTER TABLE events ADD COLUMN IF NOT EXISTS vote_rate_limit INTEGER NOT NULL DEFAULT 10 CHECK (vote_rate_limit > 0)
+`);
+
+await pool.query(`
   CREATE TABLE IF NOT EXISTS votes (
     id SERIAL PRIMARY KEY,
     submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,

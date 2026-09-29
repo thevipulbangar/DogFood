@@ -23,6 +23,7 @@ export function RealVotingBoard({ user }: { user: User }) {
   const [events, setEvents] = useState<EventRow[] | null>(null);
   const [eventId, setEventId] = useState<number | null>(null);
   const [feed, setFeed] = useState<VotingFeedItem[] | null>(null);
+  const [votingOpen, setVotingOpen] = useState(true);
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState<number | null>(null);
 
@@ -32,7 +33,9 @@ export function RealVotingBoard({ user }: { user: User }) {
 
   const load = (id: number) => {
     setFeed(null);
-    api.getVotingFeed(id).then(setFeed).catch((err: Error) => setError(err.message));
+    api.getVotingFeed(id)
+      .then((res) => { setVotingOpen(res.voting_open); setFeed(res.projects); })
+      .catch((err: Error) => setError(err.message));
   };
   useEffect(() => { if (eventId !== null) load(eventId); }, [eventId]);
 
@@ -69,6 +72,8 @@ export function RealVotingBoard({ user }: { user: User }) {
 
       {feed === null ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-[200px]" />)}</div>
+      ) : !votingOpen ? (
+        <EmptyState code="VOTING CLOSED" title="Voting is closed for this event" body="An organizer has closed voting. Check back if it reopens, or see the Results page for published outcomes." />
       ) : feed.length === 0 ? (
         <EmptyState code="0 PROJECTS" title="Nothing to vote on yet" body="Submitted projects (not your own team's) will appear here." />
       ) : (
