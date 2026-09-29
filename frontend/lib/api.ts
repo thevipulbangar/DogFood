@@ -112,7 +112,11 @@ export const api = {
     request(`/api/submissions/${id}/submit`, { method: "POST" }),
   getStats: (): Promise<{ events: number; teams: number; submissions: number }> => request("/api/stats"),
   getGallery: (params?: { q?: string; track?: string }): Promise<GalleryItem[]> => {
-    const qs = new URLSearchParams(params as Record<string, string>).toString();
+    // Drop empty/undefined filters — URLSearchParams would otherwise send
+    // the literal string "undefined" and match nothing.
+    const qs = new URLSearchParams(
+      Object.entries(params ?? {}).filter((e): e is [string, string] => !!e[1])
+    ).toString();
     return request(`/api/gallery${qs ? `?${qs}` : ""}`);
   },
   getGalleryItem: (id: number): Promise<GalleryDetail> => request(`/api/gallery/${id}`),
