@@ -1,9 +1,9 @@
 "use client";
 
 import { useSession } from "@/lib/session";
-import { Results } from "@/components/results/Results";
+import { RealResults } from "@/components/results/RealResults";
 
 export default function Page() {
   const { user } = useSession();
-  return user ? <Results user={user} /> : null;
+  return user ? <RealResults user={user} /> : null;
 }

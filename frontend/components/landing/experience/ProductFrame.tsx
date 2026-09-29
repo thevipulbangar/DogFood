@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MotionValue } from "motion/react";
-import { DEMO_USERS } from "@/lib/data";
+import type { User } from "@/lib/session";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { Topbar } from "@/components/navigation/Topbar";
 import { Dashboard } from "@/components/dashboard/Dashboards";
@@ -12,7 +12,11 @@ import { easeInOut, lerp, range, useEnv, useProgress, useSize } from "./runtime"
 /** Virtual screen the real UI is laid out on: a laptop, or a phone on narrow viewports. */
 const DESKTOP_W = 1280;
 const PHONE_W = 400;
-const organizer = DEMO_USERS.find((u) => u.role === "organizer")!;
+// Decorative only: this drives the marketing page's scroll-through preview
+// of the real Dashboard/Sidebar/Topbar components, not an authenticated
+// session — there's no token, so any data fetch these make will just fail
+// quietly into their own loading/error states, same as being logged out.
+const organizer: User = { id: 0, name: "Preview Organizer", email: "preview@dogfood.local", role: "organizer" };
 
 type Rect = { x: number; y: number; w: number; h: number };
 export type Shot = { screen: 0 | 1; target: "top" | "metrics" | { titles: string[] } };

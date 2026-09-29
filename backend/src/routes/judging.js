@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../db.js";
 import { requireAuth, requireRole } from "../auth.js";
 import { asyncHandler } from "../asyncHandler.js";
+import { logAudit } from "../audit.js";
 
 export const judgingRouter = Router();
 
@@ -140,6 +141,10 @@ judgingRouter.post(
     } finally {
       client.release();
     }
+
+    await logAudit(req.user.id, "JUDGES_ASSIGNED", `event:${event_id}`, {
+      submissions: submissions.length, judges: judges.length, assignments_created: created.length,
+    });
 
     res.status(201).json({
       submissions: submissions.length,

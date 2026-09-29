@@ -1,5 +1,5 @@
-import { AuditLog } from "@/components/admin/AuditLog";
+import { RealAuditLog } from "@/components/admin/RealAuditLog";
 
 export default function Page() {
-  return <AuditLog />;
+  return <RealAuditLog />;
 }

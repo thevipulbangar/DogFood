@@ -47,6 +47,28 @@ test("seed data loads: gallery shows the seeded submitted project", async () => 
   );
 });
 
+test("public stats: returns aggregate counts with no auth required", async () => {
+  const { status, data } = await api("GET", "/api/stats");
+  assert.equal(status, 200);
+  assert.ok(typeof data.events === "number" && data.events >= 1);
+  assert.ok(typeof data.teams === "number" && data.teams >= 1);
+  assert.ok(typeof data.submissions === "number" && data.submissions >= 1);
+});
+
+test("gallery detail: seeded submitted project is fetchable by id, drafts 404", async () => {
+  const { data: list } = await api("GET", "/api/gallery");
+  const seed = list.find((p) => p.title === "Seed Project");
+  assert.ok(seed, "expected seeded 'Seed Project' in public gallery");
+
+  const { status, data } = await api("GET", `/api/gallery/${seed.id}`);
+  assert.equal(status, 200);
+  assert.equal(data.title, "Seed Project");
+  assert.ok(Array.isArray(data.members));
+
+  const { status: missingStatus } = await api("GET", "/api/gallery/999999");
+  assert.equal(missingStatus, 404);
+});
+
 test("wrong role gets 403: participant cannot create an event", async () => {
   const token = await login("participant@dogfood.dev");
   const { status } = await api(

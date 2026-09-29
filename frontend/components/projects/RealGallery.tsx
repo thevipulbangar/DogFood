@@ -1,22 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn, fmtUTC } from "@/lib/utils";
 import { Badge, Panel, Skeleton, fieldClass } from "@/components/ui/primitives";
 import { EmptyState, ErrorState } from "@/components/ui/States";
-
-type GalleryItem = {
-  id: number;
-  title: string | null;
-  description: string | null;
-  track: string | null;
-  repo_url: string | null;
-  demo_url: string | null;
-  submitted_at: string | null;
-  team_name: string;
-};
 
 /**
  * The real, backend-backed public gallery (GET /api/gallery). Unlike the
@@ -24,7 +14,7 @@ type GalleryItem = {
  * lib/data.ts), this only shows fields the API actually returns.
  */
 export function RealGallery() {
-  const [items, setItems] = useState<GalleryItem[] | null>(null);
+  const [items, setItems] = useState<Awaited<ReturnType<typeof api.getGallery>> | null>(null);
   const [error, setError] = useState<string>();
   const [q, setQ] = useState("");
   const [track, setTrack] = useState("");
@@ -34,7 +24,7 @@ export function RealGallery() {
       setError(undefined);
       api
         .getGallery({ q: q || undefined, track: track || undefined })
-        .then((rows: GalleryItem[]) => setItems(rows))
+        .then((rows) => setItems(rows))
         .catch((err: Error) => setError(err.message));
     }, 250);
     return () => clearTimeout(id);
@@ -79,17 +69,15 @@ export function RealGallery() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((p) => (
-            <Panel key={p.id} title={p.title || "Untitled project"} action={p.track ? <Badge tone="accent">{p.track}</Badge> : undefined}>
-              <p className="line-clamp-3 text-[13.5px] text-fg-2">{p.description}</p>
-              <dl className="mt-4 space-y-1 border-t border-line pt-3 font-mono text-[11px] text-muted">
-                <div>TEAM · {p.team_name}</div>
-                {p.submitted_at && <div>SUBMITTED · {fmtUTC(p.submitted_at)}</div>}
-              </dl>
-              <div className="mt-4 flex gap-3 font-mono text-[11px]">
-                {p.repo_url && <a href={p.repo_url} target="_blank" rel="noreferrer" className="text-fg underline underline-offset-4 hover:text-accent">Repository</a>}
-                {p.demo_url && <a href={p.demo_url} target="_blank" rel="noreferrer" className="text-fg underline underline-offset-4 hover:text-accent">Demo</a>}
-              </div>
-            </Panel>
+            <Link key={p.id} href={`/gallery/${p.id}`} className="block">
+              <Panel title={p.title || "Untitled project"} action={p.track ? <Badge tone="accent">{p.track}</Badge> : undefined} className="h-full transition-colors hover:border-accent/50">
+                <p className="line-clamp-3 text-[13.5px] text-fg-2">{p.description}</p>
+                <dl className="mt-4 space-y-1 border-t border-line pt-3 font-mono text-[11px] text-muted">
+                  <div>TEAM · {p.team_name}</div>
+                  {p.submitted_at && <div>SUBMITTED · {fmtUTC(p.submitted_at)}</div>}
+                </dl>
+              </Panel>
+            </Link>
           ))}
         </div>
       )}

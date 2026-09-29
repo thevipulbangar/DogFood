@@ -76,5 +76,42 @@ await pool.query(`
     ON users ((role = 'admin')) WHERE role = 'admin'
 `);
 
+// ── T3: public voting, comments, audit trail ──────────────────────────────
+
+await pool.query(`
+  ALTER TABLE events ADD COLUMN IF NOT EXISTS results_published BOOLEAN NOT NULL DEFAULT false
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS votes (
+    id SERIAL PRIMARY KEY,
+    submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+    voter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (submission_id, voter_id)
+  )
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS comments (
+    id SERIAL PRIMARY KEY,
+    submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id SERIAL PRIMARY KEY,
+    actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    action TEXT NOT NULL,
+    object TEXT,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )
+`);
+
 console.log("migrate: schema up to date");
 await pool.end();

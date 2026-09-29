@@ -170,6 +170,42 @@ accounts with an optional `?role=` filter. This is the only way a judge or
 organizer account comes to exist; public signup always creates a
 participant. See `JUDGING.md`'s "Judge invitation" section.
 
+## `backend/src/routes/stats.js`
+
+`GET /api/stats` — public, aggregate-only counts (event/team/submission
+totals) for the marketing homepage's live numbers. No per-record data, no
+auth required; this replaced a set of hardcoded fake counters that used
+to live directly in the frontend.
+
+## `backend/src/routes/voting.js`
+
+T3: community voting, comments, and publish-gated results. See
+`JUDGING.md`'s "Community voting (T3) vs. judging" section and
+`THREAT_MODEL.md` for the abuse model. Rate limiting and duplicate-vote
+rejection both write to `audit_log` via `src/audit.js`.
+
+## `backend/src/routes/audit.js`
+
+`GET /api/audit` (organizer/admin only) — read-only view over the
+append-only `audit_log` table, newest first, capped at `?limit=` (max 500).
+
+## `backend/src/audit.js`
+
+`logAudit(actorId, action, object, metadata)` — a small helper used from
+`voting.js`, `users.js`, and `judging.js` to append one row to
+`audit_log`. Never throws into its caller (a logging failure shouldn't
+fail the action it's logging) — errors are caught and just logged to the
+server console.
+
+## `backend/db/reset.js`
+
+`npm run reset` — truncates every table and re-runs `seed.js`. Exists
+because the integration test suite makes real HTTP requests against
+whatever database the backend is pointed at, and the default
+`docker-compose` setup has no separate throwaway test database, so
+running `npm test` leaves real test data behind. Run this before a demo
+or before handing the instance to a judge.
+
 ## `backend/src/index.js`
 
 Wires all of the above together: creates the Express app, mounts each
@@ -195,6 +231,11 @@ across files by area:
   the API refuses to create a second admin, duplicate emails are rejected.
 - **teams.test.js** — organizer/admin can list all teams with members and
   submission status; a participant gets `403`.
+- **voting.test.js** — one vote per submission enforced (duplicate
+  rejected `409`), can't vote for your own team, judges/organizers can't
+  vote (`403`), results hidden from participants until published,
+  comments readable/postable by any role, and the audit log records both
+  a cast vote and a rejected duplicate.
 
 Run them with `npm test` (from `backend/`, against a running stack) or, if
 `node_modules` isn't installed on your host, `docker compose exec backend
@@ -204,8 +245,19 @@ npm test`.
 
 Next.js app router, one directory per role-visible page under
 `frontend/app/(app)/`. Real, backend-backed pages/components are named
-`Real*` (e.g. `RealGallery`, `RealJudgingOps`, `RealEventManager`,
-`RealTeamsTable`, `RealUserManagement`) to distinguish them from components
-still sketched out on local mock data (`frontend/lib/data.ts`) ahead of
-later tiers (voting, certificates, analytics, audit) — those are a known,
-documented gap, not something silently passed off as done.
+`Real*` (e.g. `RealGallery`, `RealProjectDetail`, `RealJudgingOps`,
+`RealJudgeDashboard`, `RealEventManager`, `RealTeamsTable`,
+`RealUserManagement`, `RealVotingBoard`, `RealResults`, `RealAuditLog`).
+Every page reachable from the sidebar nav is now real/backend-backed as
+of this write-up. `Analytics.tsx` and `Certificates.tsx` were rewritten
+to honest "not implemented" placeholders rather than fabricated data —
+Analytics has no corresponding tier requirement at all, Certificates is
+an unimplemented T4 stretch item. A handful of components under
+`components/landing/experience/` still use `lib/data.ts` for the
+marketing homepage's stylized scroll narrative (an illustrative product
+story, not live application data — the actual gallery/results/dashboard
+pages it links to are all real); the plain (non-`experience`) landing
+components (`Marquee`, `PlatformReveal` in `Sections.tsx`) were converted
+to fetch real data (`GET /api/gallery`, `GET /api/stats`) even though
+they aren't the ones currently rendered by `app/page.tsx`, so they're
+correct if ever swapped back in.

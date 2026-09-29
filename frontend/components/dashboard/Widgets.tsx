@@ -2,13 +2,10 @@
 
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { Check } from "lucide-react";
-import { EVENT, AUDIT } from "@/lib/data";
 import { useNow } from "@/lib/hooks";
-import { cn, fmtUTC, pad, splitDuration } from "@/lib/utils";
+import { cn, pad, splitDuration } from "@/lib/utils";
 import { Counter } from "@/components/ui/Counter";
-import { EventGrid } from "@/components/ui/EventGrid";
-import { Badge, StatusDot, Ticks } from "@/components/ui/primitives";
+import { Badge, StatusDot } from "@/components/ui/primitives";
 
 export function Greeting({ name, sub }: { name: string; sub: string }) {
   const now = useNow(60_000);
@@ -16,7 +13,7 @@ export function Greeting({ name, sub }: { name: string; sub: string }) {
   const part = h == null ? "Hello" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
   return (
     <header className="mb-8 md:mb-10">
-      <p className="label flex items-center gap-2"><StatusDot tone="ok" pulse />{EVENT.name} · {sub}</p>
+      <p className="label flex items-center gap-2"><StatusDot tone="ok" pulse />Dogfood 2026 · {sub}</p>
       <h1 className="mt-3 text-[clamp(2rem,4.8vw,3.75rem)] font-semibold uppercase leading-[0.92] tracking-[-0.04em]">
         {part},<br className="sm:hidden" /> <span className="text-fg-2">{name.split(" ")[0]}</span>
       </h1>
@@ -59,44 +56,25 @@ export function Countdown({ to, big = true, seconds }: { to: string; big?: boole
   );
 }
 
-const PHASES = [
-  { k: "REGISTRATION", at: "2026-09-10T00:00:00Z" },
-  { k: "BUILD", at: EVENT.startsAt },
-  { k: "SUBMISSIONS CLOSE", at: EVENT.deadline },
-  { k: "JUDGING", at: EVENT.deadline },
-  { k: "RESULTS", at: EVENT.resultsAt },
-];
-
-export function EventStatus({ title = "Submissions close in" }: { title?: string }) {
+/**
+ * Real deadline countdown — takes the actual event/team deadline as a
+ * prop instead of a hardcoded date. Callers with no deadline in scope
+ * (e.g. an organizer with several events open) should not render this.
+ */
+export function EventStatus({ deadline, title = "Submissions close in" }: { deadline: string; title?: string }) {
   const now = useNow(30_000);
-  const closed = now != null && now >= Date.parse(EVENT.deadline);
-  const current = now == null ? 1 : PHASES.reduce((acc, p, i) => (now >= Date.parse(p.at) ? i : acc), 0);
+  const closed = now != null && now >= Date.parse(deadline);
 
   return (
     <section aria-label="Event status" className="relative overflow-hidden rounded-md border border-line bg-surface/70">
-      <Ticks />
-      <EventGrid cells={8} seed={21} size={40} className="opacity-70" />
-      <div className="relative grid gap-8 p-5 md:p-8 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="label text-fg-2">Event status</span>
-            <Badge tone={closed ? "warn" : "ok"} dot pulse>{closed ? "Judging" : "Live"}</Badge>
-            <span className="label">{EVENT.id}</span>
-          </div>
-          <p className="label mt-8">{closed ? "Submissions closed" : title}</p>
-          <div className="mt-3">{closed ? <p className="text-5xl font-semibold tracking-tight">Locked</p> : <Countdown to={EVENT.deadline} />}</div>
-          <p className="mt-5 font-mono text-[11.5px] text-muted">DEADLINE {fmtUTC(EVENT.deadline)} · SERVER-AUTHORITATIVE CLOCK</p>
+      <div className="relative p-5 md:p-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="label text-fg-2">Event status</span>
+          <Badge tone={closed ? "warn" : "ok"} dot pulse>{closed ? "Submissions closed" : "Live"}</Badge>
         </div>
-        <ol className="grid grid-cols-5 gap-2 lg:w-[420px] lg:grid-cols-1 lg:gap-0">
-          {PHASES.map((p, i) => (
-            <li key={p.k} className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3 lg:border-l lg:border-line lg:py-2 lg:pl-4">
-              <span className={cn("h-0.5 w-full rounded-full lg:size-1.5 lg:-ml-[19px] lg:w-1.5", i < current ? "bg-fg-2" : i === current ? "bg-accent" : "bg-line-strong")} />
-              <span className={cn("hidden font-mono text-[10.5px] tracking-[0.08em] lg:inline", i === current ? "text-fg" : "text-muted")}>{p.k}</span>
-              <span className="hidden font-mono text-[10px] text-muted lg:ml-auto lg:inline">{fmtUTC(p.at, "date")}</span>
-              {i < current && <Check className="hidden size-3 text-muted lg:block" />}
-            </li>
-          ))}
-        </ol>
+        <p className="label mt-8">{closed ? "Submissions closed" : title}</p>
+        <div className="mt-3">{closed ? <p className="text-5xl font-semibold tracking-tight">Locked</p> : <Countdown to={deadline} />}</div>
+        <p className="mt-5 font-mono text-[11.5px] text-muted">DEADLINE {new Date(deadline).toUTCString()}</p>
       </div>
     </section>
   );
@@ -122,21 +100,5 @@ export function MetricStrip({ items }: { items: { k: string; v: number; suffix?:
         );
       })}
     </dl>
-  );
-}
-
-export function ActivityFeed({ limit = 8 }: { limit?: number }) {
-  return (
-    <ol className="divide-y divide-line">
-      {AUDIT.slice(0, limit).map((e, i) => (
-        <motion.li key={e.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.03 }}
-          className="grid grid-cols-[64px_1fr] gap-3 py-2.5 font-mono text-[11px] sm:grid-cols-[64px_130px_1fr_auto]">
-          <span className="text-muted tabular">{fmtUTC(e.at, "clock")}</span>
-          <span className="truncate text-fg-2">{e.actor}</span>
-          <span className={cn("col-start-2 truncate sm:col-start-auto", e.action.includes("REJECT") || e.action.includes("RATE") ? "text-warn" : "text-fg")}>{e.action}</span>
-          <span className="col-start-2 text-muted sm:col-start-auto">{e.object}</span>
-        </motion.li>
-      ))}
-    </ol>
   );
 }

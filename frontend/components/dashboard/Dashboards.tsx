@@ -1,25 +1,21 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, Clock, FileEdit, Flag, ShieldAlert, Users } from "lucide-react";
-import {
-  ASSIGNMENTS, AUDIT, EVENT, JUDGES, PROJECTS, RUBRIC, SUBMISSION_TIMELINE, SUBMITTED, TEAMS,
-  judgeStats, projectById, teamById,
-} from "@/lib/data";
+import { ArrowRight, Clock, FileEdit, Users } from "lucide-react";
 import type { User } from "@/lib/session";
-import { useSimulatedLoad, useMyTeam } from "@/lib/hooks";
-import { fmtUTC, hms, pad } from "@/lib/utils";
-import { AreaChart, ChartFrame, HBars } from "@/components/charts/Charts";
+import { useMyTeam } from "@/lib/hooks";
+import { api, type EventItem, type GalleryItem, type TeamWithDetail } from "@/lib/api";
+import { fmtUTC } from "@/lib/utils";
 import { Avatar, Badge, Meta, Meter, Panel, Skeleton, buttonClass } from "@/components/ui/primitives";
 import { ErrorState } from "@/components/ui/States";
-import { ProjectCard } from "@/components/projects/ProjectCard";
 import { JoinOrCreateTeam } from "@/components/teams/JoinOrCreateTeam";
-import { JudgeDashboard } from "@/components/judging/JudgeDashboard";
-import { ActivityFeed, EventStatus, Greeting, MetricStrip } from "./Widgets";
+import { RealJudgeDashboard } from "@/components/judging/RealJudgeDashboard";
+import { EventStatus, Greeting, MetricStrip } from "./Widgets";
 
 export function Dashboard({ user }: { user: User }) {
   if (user.role === "participant") return <ParticipantDashboard user={user} />;
-  if (user.role === "judge") return <JudgeDashboard user={user} />;
+  if (user.role === "judge") return <RealJudgeDashboard user={user} />;
   return <OrganizerDashboard user={user} />;
 }
 
@@ -37,6 +33,11 @@ function DashboardSkeleton() {
 
 function ParticipantDashboard({ user }: { user: User }) {
   const { team, members, submission, loading, error, refresh } = useMyTeam();
+  const [recent, setRecent] = useState<GalleryItem[] | null>(null);
+
+  useEffect(() => {
+    api.getGallery().then((rows) => setRecent(rows.slice(0, 3))).catch(() => setRecent([]));
+  }, []);
 
   if (loading) return <DashboardSkeleton />;
   if (error) return <ErrorState onRetry={refresh} />;
@@ -55,14 +56,14 @@ function ParticipantDashboard({ user }: { user: User }) {
     { k: "Description", done: (submission?.description?.length ?? 0) >= 30 },
     { k: "Repository link", done: !!submission?.repo_url },
     { k: "Demo link", done: !!submission?.demo_url },
-    { k: "Track selected", done: !!submission?.track },
+    { k: "Track selected", done: (team.event_tracks?.length ?? 0) === 0 || !!submission?.track },
   ];
   const done = checklist.filter((c) => c.done).length;
 
   return (
     <>
       <Greeting name={user.name} sub="Participant workspace" />
-      <EventStatus />
+      <div className="mt-6"><EventStatus deadline={team.submission_deadline} /></div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Panel title="Your submission" meta={team.event_name} ticks
@@ -113,15 +114,24 @@ function ParticipantDashboard({ user }: { user: User }) {
         </Panel>
       </div>
 
-      <section className="mt-10">
-        <div className="mb-4 flex items-end justify-between">
-          <div><p className="label">From the gallery</p><h2 className="mt-1 text-xl font-semibold tracking-tight">Recently submitted</h2></div>
-          <Link href="/projects" className="label flex items-center gap-1 hover:text-fg">All projects <ArrowRight className="size-3" /></Link>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {[...SUBMITTED].sort((a, b) => b.submittedAt!.localeCompare(a.submittedAt!)).slice(0, 3).map((p, i) => <ProjectCard key={p.id} project={p} index={i} />)}
-        </div>
-      </section>
+      {recent && recent.length > 0 && (
+        <section className="mt-10">
+          <div className="mb-4 flex items-end justify-between">
+            <div><p className="label">From the gallery</p><h2 className="mt-1 text-xl font-semibold tracking-tight">Recently submitted</h2></div>
+            <Link href="/gallery" className="label flex items-center gap-1 hover:text-fg">All projects <ArrowRight className="size-3" /></Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {recent.map((p) => (
+              <Link key={p.id} href={`/gallery/${p.id}`}>
+                <Panel title={p.title || "Untitled project"} className="h-full transition-colors hover:border-accent/50">
+                  <p className="line-clamp-2 text-[13px] text-fg-2">{p.description}</p>
+                  <p className="mt-3 font-mono text-[11px] text-muted">{p.team_name}</p>
+                </Panel>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </>
   );
 }
@@ -129,90 +139,99 @@ function ParticipantDashboard({ user }: { user: User }) {
 // ── Organizer / Admin ─────────────────────────────────────────
 
 function OrganizerDashboard({ user }: { user: User }) {
-  const loading = useSimulatedLoad();
-  if (loading) return <DashboardSkeleton />;
-  const judgedPct = (ASSIGNMENTS.filter((a) => a.status === "submitted").length / ASSIGNMENTS.length) * 100;
-  const flagged = ASSIGNMENTS.filter((a) => a.status === "flagged");
-  const drafts = PROJECTS.filter((p) => p.status === "draft");
-  const abuse = AUDIT.filter((e) => e.action === "VOTE_REJECTED_DUPLICATE" || e.action === "RATE_LIMIT_TRIGGERED");
+  const [events, setEvents] = useState<EventItem[] | null>(null);
+  const [teams, setTeams] = useState<TeamWithDetail[] | null>(null);
+  const [error, setError] = useState<string>();
+
+  const load = () => {
+    setError(undefined);
+    Promise.all([api.getEvents(), api.getTeams()])
+      .then(([e, t]) => { setEvents(e); setTeams(t); })
+      .catch((err: Error) => setError(err.message));
+  };
+
+  useEffect(load, []);
+
+  if (error) return <ErrorState onRetry={load} />;
+  if (events === null || teams === null) return <DashboardSkeleton />;
+
+  const participants = teams.reduce((s, t) => s + t.members.length, 0);
+  const submitted = teams.filter((t) => t.submission && !t.submission.is_draft).length;
+  const drafting = teams.filter((t) => t.submission?.is_draft).length;
+  const notStarted = teams.filter((t) => !t.submission).length;
+  const nextDeadline = events
+    .map((e) => e.submission_deadline)
+    .filter(Boolean)
+    .sort()[0];
 
   return (
     <>
       <Greeting name={user.name} sub="Event control center" />
-      <EventStatus />
+      {nextDeadline && <div className="mt-6"><EventStatus deadline={nextDeadline} title="Next submission deadline in" /></div>}
 
       <div className="mt-6">
         <MetricStrip items={[
-          { k: "Projects", v: PROJECTS.length, delta: `${drafts.length} in draft`, href: "/projects" },
-          { k: "Teams", v: TEAMS.length, delta: `${TEAMS.reduce((s, t) => s + t.members.length, 0)} participants`, href: "/teams" },
-          { k: "Judges", v: JUDGES.length, delta: `${ASSIGNMENTS.length} assignments`, href: "/judging" },
-          { k: "Submissions", v: SUBMITTED.length, delta: `${Math.round((SUBMITTED.length / PROJECTS.length) * 100)}% of projects` },
-          { k: "Judged", v: judgedPct, suffix: "%", delta: "normalization pending", href: "/judging" },
+          { k: "Events", v: events.length, href: "/admin" },
+          { k: "Teams", v: teams.length, href: "/teams" },
+          { k: "Participants", v: participants },
+          { k: "Submitted", v: submitted, delta: `${drafting} draft · ${notStarted} not started`, href: "/gallery" },
         ]} />
+        <p className="mt-3 font-mono text-[10.5px] text-muted">Judging progress: <Link href="/judging" className="underline underline-offset-4 hover:text-fg">see live status →</Link></p>
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <ChartFrame title="Submission timeline" meta="Cumulative · since kickoff">
-          <AreaChart data={SUBMISSION_TIMELINE} height={220} caption="Cumulative submissions by 6-hour window" />
-        </ChartFrame>
-        <ChartFrame title="Judge completion" meta={`${JUDGES.length} judges`}>
-          <HBars caption="Completed assignments per judge" max={100} format={(v) => `${Math.round(v)}%`}
-            data={JUDGES.map((j) => { const s = judgeStats(j.id); return { label: j.name, sub: j.id, value: s.assigned ? (s.completed / s.assigned) * 100 : 0 }; })
-              .sort((a, b) => b.value - a.value).slice(0, 6)} />
-        </ChartFrame>
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <Panel title="Live activity" meta="AUDIT STREAM" action={<Link href="/audit" className="label flex items-center gap-1 hover:text-fg">Open ledger <ArrowRight className="size-3" /></Link>} bodyClassName="px-4 py-1">
-          <ActivityFeed limit={9} />
+        <Panel title="Events" meta={`${events.length} TOTAL`} action={<Link href="/admin" className="label flex items-center gap-1 hover:text-fg">Manage <ArrowRight className="size-3" /></Link>} bodyClassName="p-0">
+          {events.length === 0 ? (
+            <p className="p-4 text-[13.5px] text-fg-2">No events yet. Create one from Administration.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {events.map((e) => (
+                <li key={e.id} className="flex items-start gap-3 p-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13.5px] font-medium">{e.name}</p>
+                    <p className="mt-0.5 font-mono text-[11px] text-muted">DEADLINE {fmtUTC(e.submission_deadline, "time")}{e.tracks.length > 0 ? ` · ${e.tracks.length} TRACKS` : ""}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </Panel>
 
-        <Panel title="Needs attention" meta={`${flagged.length + drafts.length + abuse.length} ITEMS`} bodyClassName="p-0">
-          <ul className="divide-y divide-line">
-            {flagged.map((a) => (
-              <li key={`${a.judgeId}${a.projectId}`} className="flex items-start gap-3 p-4">
-                <Flag className="mt-0.5 size-4 shrink-0 text-danger" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13.5px]">Score flagged for review</p>
-                  <p className="mt-0.5 font-mono text-[11px] text-muted">{a.judgeId} · PROJECT_{pad(a.projectId)}</p>
-                </div>
-                <Link href={`/projects/${a.projectId}`} className={buttonClass("ghost", "sm")}>Review</Link>
-              </li>
-            ))}
-            {drafts.map((p) => (
-              <li key={p.id} className="flex items-start gap-3 p-4">
-                <Clock className="mt-0.5 size-4 shrink-0 text-warn" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13.5px]"><span className="font-medium">{p.name}</span> is still a draft</p>
-                  <p className="mt-0.5 font-mono text-[11px] text-muted">{teamById(p.teamId).name.toUpperCase()} · LOCKS {fmtUTC(EVENT.deadline, "time")}</p>
-                </div>
-              </li>
-            ))}
-            <li className="flex items-start gap-3 p-4">
-              <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warn" />
-              <div className="min-w-0 flex-1">
-                <p className="text-[13.5px]">{abuse.length} voting anomalies blocked</p>
-                <p className="mt-0.5 font-mono text-[11px] text-muted">DUPLICATES + RATE LIMITS · LAST 24H</p>
-              </div>
-              <Link href="/voting" className={buttonClass("ghost", "sm")}>Inspect</Link>
-            </li>
-          </ul>
+        <Panel title="Needs attention" meta={`${notStarted + drafting} ITEMS`} bodyClassName="p-0">
+          {notStarted + drafting === 0 ? (
+            <p className="p-4 text-[13.5px] text-fg-2">Every team has a submitted project.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {teams.filter((t) => t.submission?.is_draft).map((t) => (
+                <li key={t.id} className="flex items-start gap-3 p-4">
+                  <Clock className="mt-0.5 size-4 shrink-0 text-warn" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13.5px]"><span className="font-medium">{t.name}</span> has a draft submission</p>
+                    <p className="mt-0.5 font-mono text-[11px] text-muted">{t.event_name.toUpperCase()} · LOCKS {fmtUTC(t.submission_deadline, "time")}</p>
+                  </div>
+                </li>
+              ))}
+              {teams.filter((t) => !t.submission).map((t) => (
+                <li key={t.id} className="flex items-start gap-3 p-4">
+                  <Clock className="mt-0.5 size-4 shrink-0 text-muted" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13.5px]"><span className="font-medium">{t.name}</span> hasn&apos;t started a submission</p>
+                    <p className="mt-0.5 font-mono text-[11px] text-muted">{t.event_name.toUpperCase()}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </Panel>
       </div>
 
       {user.role === "admin" && (
         <Panel title="System" meta="LOCAL INSTANCE" className="mt-6">
-          <dl className="grid gap-x-10 sm:grid-cols-2 xl:grid-cols-4">
-            <Meta k="Instance" v={EVENT.instance} />
-            <Meta k="Version" v={`${EVENT.version} · ${EVENT.build}`} />
-            <Meta k="Database" v="SQLite · 18.4 MB" />
-            <Meta k="Last backup" v="04:00 UTC · OK" />
-            <Meta k="API p95" v="11 ms" />
-            <Meta k="Webhooks" v="3 endpoints · 100%" />
-            <Meta k="Rubric" v={`${RUBRIC.length} criteria · locked`} />
+          <dl className="grid gap-x-10 sm:grid-cols-2 xl:grid-cols-3">
+            <Meta k="Deployment" v="Self-hosted (Docker Compose)" />
             <Meta k="Network" v={<span className="text-ok">Not required</span>} />
+            <Meta k="Manage accounts" v={<Link href="/admin" className="underline underline-offset-4 hover:text-accent">Administration →</Link>} />
           </dl>
-          <p className="mt-4 flex items-center gap-2 font-mono text-[11px] text-muted"><AlertTriangle className="size-3.5" />No external services configured. All data resides on this host.</p>
         </Panel>
       )}
     </>

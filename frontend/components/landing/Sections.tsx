@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, useScroll, useTransform } from "motion/react";
 import { ArrowRight, Check } from "lucide-react";
-import { EVENT, PROJECTS, SUBMITTED, TEAMS, JUDGES, ASSIGNMENTS, teamById } from "@/lib/data";
+import { api, type GalleryItem } from "@/lib/api";
 import { pad } from "@/lib/utils";
 import { Logo } from "@/components/ui/Logo";
 import { Counter } from "@/components/ui/Counter";
@@ -33,17 +33,25 @@ export function LandingNav() {
   );
 }
 
-/** Horizontal project showcase — an endless ticker of real submissions. */
+/** Horizontal project showcase — an endless ticker of real submissions, pulled live from GET /api/gallery. */
 export function Marquee() {
-  const items = [...SUBMITTED, ...SUBMITTED];
+  const [submitted, setSubmitted] = useState<GalleryItem[]>([]);
+
+  useEffect(() => {
+    api.getGallery().then(setSubmitted).catch(() => setSubmitted([]));
+  }, []);
+
+  if (submitted.length === 0) return null;
+  const items = [...submitted, ...submitted];
+
   return (
     <section aria-label="Submitted projects" className="relative overflow-hidden border-b border-line py-6">
       <div className="animate-marquee flex w-max gap-10 hover:[animation-play-state:paused]">
         {items.map((p, i) => (
-          <Link key={i} href={`/gallery/${p.id}`} tabIndex={i >= SUBMITTED.length ? -1 : 0} aria-hidden={i >= SUBMITTED.length}
+          <Link key={`${p.id}-${i}`} href={`/gallery/${p.id}`} tabIndex={i >= submitted.length ? -1 : 0} aria-hidden={i >= submitted.length}
             className="group flex shrink-0 items-baseline gap-3 whitespace-nowrap">
-            <span className="font-mono text-[11px] text-muted">P-{pad(p.id)}</span>
-            <span className="text-2xl font-semibold tracking-[-0.03em] text-fg-2 transition-colors group-hover:text-accent">{p.name}</span>
+            <span className="font-mono text-[11px] text-muted">P-{String(p.id).padStart(3, "0")}</span>
+            <span className="text-2xl font-semibold tracking-[-0.03em] text-fg-2 transition-colors group-hover:text-accent">{p.title || "Untitled project"}</span>
             <span className="text-line-strong">/</span>
           </Link>
         ))}
@@ -59,15 +67,23 @@ export function PlatformReveal() {
   const rotateX = useTransform(scrollYProgress, [0, 1], [28, 0]);
   const scale = useTransform(scrollYProgress, [0, 1], [0.86, 1]);
   const opacity = useTransform(scrollYProgress, [0, 0.5], [0.2, 1]);
-  const judged = Math.round((ASSIGNMENTS.filter((a) => a.status === "submitted").length / ASSIGNMENTS.length) * 100);
 
-  const metrics = [
-    { k: "PROJECTS", v: PROJECTS.length },
-    { k: "TEAMS", v: TEAMS.length },
-    { k: "JUDGES", v: JUDGES.length },
-    { k: "SUBMITTED", v: SUBMITTED.length },
-    { k: "JUDGED", v: judged, s: "%" },
-  ];
+  const [stats, setStats] = useState<{ events: number; teams: number; submissions: number } | null>(null);
+  const [preview, setPreview] = useState<GalleryItem[]>([]);
+
+  useEffect(() => {
+    api.getStats().then(setStats).catch(() => setStats(null));
+    api.getGallery().then((rows) => setPreview(rows.slice(0, 4))).catch(() => setPreview([]));
+  }, []);
+
+  // Real, live aggregate counts from GET /api/stats — no fabricated numbers.
+  const metrics = stats
+    ? [
+        { k: "EVENTS", v: stats.events },
+        { k: "TEAMS", v: stats.teams },
+        { k: "SUBMITTED", v: stats.submissions },
+      ]
+    : [];
 
   return (
     <section id="platform" ref={ref} className="relative overflow-hidden border-b border-line px-5 py-24 md:px-10 md:py-36">
@@ -88,32 +104,35 @@ export function PlatformReveal() {
             <Ticks />
             <div className="flex h-10 items-center gap-2 border-b border-line px-4">
               {[0, 1, 2].map((i) => <span key={i} className="size-2 rounded-full bg-white/15" />)}
-              <span className="ml-4 font-mono text-[10.5px] text-muted">{EVENT.instance}/dashboard</span>
+              <span className="ml-4 font-mono text-[10.5px] text-muted">local/dashboard</span>
               <span className="ml-auto flex items-center gap-2 font-mono text-[10px] text-ok"><StatusDot tone="ok" pulse />LIVE</span>
             </div>
             <div className="p-5 md:p-8">
               <p className="label">EVENT CONTROL CENTER</p>
               <p className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl">Dogfood 2026</p>
-              <dl className="mt-6 grid grid-cols-2 border-l border-t border-line sm:grid-cols-5">
-                {metrics.map((m) => (
-                  <div key={m.k} className="border-b border-r border-line p-4">
-                    <dt className="label">{m.k}</dt>
-                    <dd className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl"><Counter value={m.v} suffix={m.s} /></dd>
-                  </div>
-                ))}
-              </dl>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {SUBMITTED.slice(0, 4).map((p) => (
-                  <div key={p.id} className="overflow-hidden rounded-sm border border-line">
-                    <div className="aspect-[16/9]"><ProjectPreview seed={p.slug} animated /></div>
-                    <div className="border-t border-line p-3">
-                      <p className="font-mono text-[10px] text-muted">{p.code}</p>
-                      <p className="mt-1 text-[14px] font-medium">{p.name}</p>
-                      <p className="truncate text-[12px] text-muted">{teamById(p.teamId).name}</p>
+              {metrics.length > 0 && (
+                <dl className="mt-6 grid grid-cols-3 border-l border-t border-line">
+                  {metrics.map((m) => (
+                    <div key={m.k} className="border-b border-r border-line p-4">
+                      <dt className="label">{m.k}</dt>
+                      <dd className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl"><Counter value={m.v} /></dd>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </dl>
+              )}
+              {preview.length > 0 && (
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {preview.map((p) => (
+                    <div key={p.id} className="overflow-hidden rounded-sm border border-line">
+                      <div className="aspect-[16/9]"><ProjectPreview seed={String(p.id)} animated /></div>
+                      <div className="border-t border-line p-3">
+                        <p className="mt-1 text-[14px] font-medium">{p.title || "Untitled project"}</p>
+                        <p className="truncate text-[12px] text-muted">{p.team_name}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
@@ -226,7 +245,7 @@ export function Footer() {
     <footer className="border-t border-line px-5 py-8 md:px-10">
       <div className="mx-auto flex max-w-[1600px] flex-col gap-4 font-mono text-[10.5px] uppercase tracking-[0.1em] text-muted md:flex-row md:items-center md:justify-between">
         <Logo />
-        <span>Open source · Self-hosted · {EVENT.version} · build {EVENT.build}</span>
+        <span>Open source · Self-hosted · No cloud dependencies</span>
         <span className="flex items-center gap-2"><StatusDot tone="ok" />All systems local</span>
       </div>
     </footer>

@@ -75,10 +75,24 @@ creates a participant), and there's deliberately only ever one admin.
 
 See `JUDGING.md` for the judging methodology in detail.
 
-The frontend also has UI pages sketched out for voting, results,
-certificates and admin/audit views ahead of their backends (T3/T4) — those
-are still running on local mock data and are clearly not part of what's
-judged as "done" yet.
+**T3 — Public (done):**
+- Community voting: one vote per project per voter (database unique
+  constraint), participants only — judges/organizers can't vote, and you
+  can't vote for your own team
+- Comments on any submission, any authenticated role
+- Results hidden until an organizer explicitly publishes them
+  (`POST /api/voting/publish`) — separate from, and never mixed with,
+  judging scores
+- Randomized voting order, a per-voter rate limit, and an append-only
+  audit trail of votes/rejections/rate-limits/account creation/judge
+  assignment (`GET /api/audit`, organizer/admin only)
+- Full abuse-model write-up, including what's explicitly NOT defended
+  against, in `THREAT_MODEL.md`
+
+**T4 — Stretch (partial):** the embeddable gallery widget (`/embed`) is
+real, backed by `GET /api/gallery`. Certificate generation, signed judge
+records, an OpenAPI spec, and bulk import/export are not implemented —
+see `acceptance-report.txt` for the honest gap list.
 
 ## Project layout
 
@@ -100,6 +114,20 @@ docker compose exec backend npm test
 Integration tests against the live API: seeded accounts can log in, the
 seeded project appears in the public gallery, the wrong role is rejected
 with `403`, and a submission after the deadline is rejected.
+
+These are real HTTP requests against whatever database the backend is
+currently pointed at — there's no separate throwaway test database in the
+default `docker compose` setup. That means running the suite creates real
+teams, submissions and events, and they'll show up in the gallery and
+admin panels alongside the fixture data. Restore a clean, fixture-only
+state with:
+
+```bash
+docker compose exec backend npm run reset
+```
+
+This truncates every table and re-runs the seed script. Do this before
+recording the demo video or handing the instance to a judge.
 
 ## License
 

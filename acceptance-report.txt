@@ -149,18 +149,77 @@ T2 VERDICT: All six spec requirements implemented and testable. No known
 gaps as of this report.
 
 
-TIER 3 — PUBLIC (NOT ATTEMPTED)
-=================================
-Community voting, comments, hidden results, randomized ordering, rate
-limiting, duplicate detection, and audit trails are sketched in the
-frontend on local mock data only (components/voting/VotingBoard.tsx) and
-have no backend. Not claimed as done.
+TIER 3 — PUBLIC
+================
+
+[PASS] Configurable community voting
+  - POST /api/voting/:id/vote (participant-only, requireRole enforced)
+  - One vote per (submission, voter), enforced by a DATABASE unique
+    constraint (votes.submission_id, votes.voter_id) — not just an API
+    check, so it holds even under concurrent requests
+  - Voting excludes drafts and the caller's own team's submission
+  - Real frontend: RealVotingBoard.tsx at /voting
+  - Test: voting.test.js "participant can vote once, a second vote on
+    the same project is rejected as duplicate"; "cannot vote for your
+    own team's submission"
+
+[PASS] Comments
+  - GET/POST /api/voting/:id/comments, any authenticated role, 2000
+    char cap, append-only (no edit/delete endpoint)
+  - Real frontend: inline comment thread per project on /voting
+  - Test: voting.test.js "any authenticated role can post and read"
+
+[PASS] Hidden results during voting
+  - events.results_published (default false) gates GET
+    /api/voting/results for non-staff callers (403 until published);
+    organizer/admin can always preview. POST /api/voting/publish
+    (organizer/admin) flips the flag
+  - Real frontend: Results page shows a Publish/Unpublish control for
+    staff and a "results not published yet" state for participants
+  - Test: voting.test.js "results: hidden from participants until an
+    organizer publishes them"
+
+[PASS] Randomized project ordering
+  - GET /api/voting/feed uses ORDER BY random() — re-shuffled on every
+    request, so no submission is systematically favored by list
+    position (a fixed per-viewer seed would be a further refinement;
+    see THREAT_MODEL.md)
+
+[PASS] Rate limiting
+  - Per-voter limit: no more than 10 votes per rolling 60-second
+    window (checked server-side against votes.created_at before every
+    insert); a request over the limit gets 429 and is written to the
+    audit log as RATE_LIMIT_TRIGGERED
+
+[PARTIAL] Duplicate detection
+  - Duplicate VOTES (same voter, same project) are fully prevented at
+    the database level. Duplicate/Sybil ACCOUNTS (one person creating
+    many participant accounts to vote multiple times) are NOT detected
+    — there is no email verification, device fingerprinting, or IP
+    correlation in this build. Documented as a known gap and threat in
+    THREAT_MODEL.md rather than silently left out.
+
+[PASS] Audit trails
+  - Append-only audit_log table; written on vote cast, vote rejected
+    (duplicate), rate limit triggered, comment posted, judge assigned,
+    account created, results published/unpublished
+  - GET /api/audit (organizer/admin only)
+  - Real frontend: RealAuditLog.tsx at /audit
+  - Test: voting.test.js "audit log: organizer/admin only, records a
+    vote and a rejected duplicate"
+
+T3 VERDICT: All six spec requirements implemented and testable, with one
+explicitly flagged partial (Sybil/multi-account detection out of scope —
+see THREAT_MODEL.md for the full abuse-model writeup, including what a
+production deployment would need to add).
 
 TIER 4 — STRETCH (NOT ATTEMPTED)
 ===================================
 REST API/webhooks documentation, certificate generation, signed judge
-records, embeddable gallery widget, and bulk import/export are not
-implemented.
+records, and bulk import/export are not implemented. The embeddable
+gallery widget (/embed) IS implemented and backed by the real
+GET /api/gallery API (no fabricated data), but the rest of T4 is out of
+scope for this submission. Honest gap, not claimed as done.
 
 
 DELIBERATE DESIGN DECISIONS WORTH NOTING
@@ -172,11 +231,22 @@ DELIBERATE DESIGN DECISIONS WORTH NOTING
 - Replacing an event's rubric deletes scores tied to removed criteria
   (ON DELETE CASCADE) — a deliberate simplicity trade-off, surfaced to
   the organizer as an explicit warning in the UI rather than hidden.
+- Voting and judging are deliberately independent signals: judges and
+  organizers cannot vote (role isolation), and normalized judging scores
+  and community vote counts are never combined into a single number —
+  both are shown side by side on Results and left for a human to weigh.
+- The integration test suite runs real HTTP requests against whatever
+  database the backend is pointed at (there's no separate throwaway test
+  database in the default docker-compose setup), so running `npm test`
+  will add real teams/submissions/votes alongside the fixture data. Run
+  `npm run reset` (truncates all tables, re-seeds) before a demo or a
+  judging session to get back to a clean, fixture-only state.
 
 HOW TO RE-RUN VERIFICATION
 =============================
     docker compose up --build
     docker compose exec backend npm test
+    docker compose exec backend npm run reset   # restore clean fixture data after testing
 
 Seeded accounts (password "password123" for all):
     participant@dogfood.dev

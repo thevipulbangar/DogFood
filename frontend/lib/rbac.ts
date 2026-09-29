@@ -14,7 +14,7 @@ const STAFF: Role[] = ["organizer", "admin"];
 
 export const NAV: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutGrid, roles: ALL, group: "main", shortcut: "G O" },
-  { href: "/projects", label: "Projects", icon: FolderKanban, roles: ALL, group: "main", shortcut: "G P" },
+  { href: "/gallery", label: "Projects", icon: FolderKanban, roles: ALL, group: "main", shortcut: "G P" },
   { href: "/teams", label: "Team", icon: Users, roles: ["participant", ...STAFF], group: "main", shortcut: "G T" },
   { href: "/submission", label: "Submission", icon: FileEdit, roles: ["participant"], group: "main", shortcut: "G S" },
   { href: "/judging", label: "Judging", icon: Gavel, roles: ["judge", ...STAFF], group: "main", shortcut: "G J" },

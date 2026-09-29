@@ -29,6 +29,12 @@ export type EventItem = {
 };
 export type TeamWithDetail = Team & { members: TeamMember[]; submission: Submission | null };
 
+export type GalleryItem = {
+  id: number; title: string | null; description: string | null; track: string | null;
+  repo_url: string | null; demo_url: string | null; submitted_at: string | null; team_name: string;
+};
+export type GalleryDetail = GalleryItem & { event_id: number; event_name: string; members: { id: number; name: string }[] };
+
 export type ManagedUser = { id: number; name: string; email: string; role: "participant" | "judge" | "organizer" | "admin"; created_at: string };
 
 export type RubricCriterion = { id: number; event_id: number; name: string; description: string | null; weight: number };
@@ -39,6 +45,14 @@ export type JudgeAssignment = {
 };
 export type ScoreInput = { criterion_id: number; raw_score: number; notes?: string };
 export type ResultRow = { submission_id: number; title: string; team_name: string; judges_completed: number; raw_avg: number; normalized_avg: number; fully_normalized: boolean };
+
+export type VotingFeedItem = {
+  id: number; title: string | null; description: string | null; track: string | null;
+  repo_url: string | null; demo_url: string | null; team_name: string; has_voted: boolean;
+};
+export type Comment = { id: number; body: string; created_at: string; author_name: string; author_role: string };
+export type VotingResultRow = { submission_id: number; title: string; team_name: string; vote_count: number };
+export type AuditEntry = { id: number; action: string; object: string | null; metadata: unknown; created_at: string; actor_name: string | null; actor_role: string | null };
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -92,10 +106,12 @@ export const api = {
     request(`/api/submissions/${id}`, { method: "PUT", body: JSON.stringify(fields) }),
   submitSubmission: (id: number) =>
     request(`/api/submissions/${id}/submit`, { method: "POST" }),
-  getGallery: (params?: { q?: string; track?: string }) => {
+  getStats: (): Promise<{ events: number; teams: number; submissions: number }> => request("/api/stats"),
+  getGallery: (params?: { q?: string; track?: string }): Promise<GalleryItem[]> => {
     const qs = new URLSearchParams(params as Record<string, string>).toString();
     return request(`/api/gallery${qs ? `?${qs}` : ""}`);
   },
+  getGalleryItem: (id: number): Promise<GalleryDetail> => request(`/api/gallery/${id}`),
 
   // ── Admin: account creation (judges/organizers only — there is one
   // hardcoded admin, never created here) ──────────────────────────────
@@ -137,4 +153,16 @@ export const api = {
     a.click();
     URL.revokeObjectURL(url);
   },
+
+  // ── T3: public voting, comments, audit trail ────────────────────────
+  getVotingFeed: (event_id: number): Promise<VotingFeedItem[]> => request(`/api/voting/feed?event_id=${event_id}`),
+  castVote: (submissionId: number) => request(`/api/voting/${submissionId}/vote`, { method: "POST" }),
+  getComments: (submissionId: number): Promise<Comment[]> => request(`/api/voting/${submissionId}/comments`),
+  postComment: (submissionId: number, body: string): Promise<Comment> =>
+    request(`/api/voting/${submissionId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
+  getVotingResults: (event_id: number): Promise<{ published: boolean; results: VotingResultRow[] }> =>
+    request(`/api/voting/results?event_id=${event_id}`),
+  publishResults: (event_id: number, published = true) =>
+    request("/api/voting/publish", { method: "POST", body: JSON.stringify({ event_id, published }) }),
+  getAuditLog: (limit = 100): Promise<AuditEntry[]> => request(`/api/audit?limit=${limit}`),
 };

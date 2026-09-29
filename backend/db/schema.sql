@@ -116,3 +116,46 @@ CREATE TABLE scores (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (assignment_id, criterion_id)
 );
+
+
+-- ── T3: Public voting, comments, audit trail ──────────────────────────────
+
+-- Results stay hidden from the public/participant-facing results view
+-- until an organizer or admin explicitly publishes them (see voting.js
+-- POST /api/voting/publish). Judging results (/api/judging/results) are
+-- unaffected by this flag — it only gates the T3 community view.
+ALTER TABLE events ADD COLUMN results_published BOOLEAN NOT NULL DEFAULT false;
+
+-- One vote per (submission, voter): the unique constraint is the primary
+-- duplicate-vote defense, enforced by the database, not just the API.
+-- Only participants may vote (checked in voting.js), and never for their
+-- own team's submission.
+CREATE TABLE votes (
+  id SERIAL PRIMARY KEY,
+  submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+  voter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (submission_id, voter_id)
+);
+
+-- Open discussion on a submission. Any authenticated role may comment;
+-- there is no edit/delete path — comments are an append-only record.
+CREATE TABLE comments (
+  id SERIAL PRIMARY KEY,
+  submission_id INTEGER NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Append-only audit trail. Written by the API on sensitive actions (votes
+-- cast/rejected, rate limits triggered, accounts created, judges assigned,
+-- results published) — never edited or deleted through any endpoint.
+CREATE TABLE audit_log (
+  id SERIAL PRIMARY KEY,
+  actor_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  object TEXT,
+  metadata JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

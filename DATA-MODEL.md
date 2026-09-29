@@ -136,12 +136,64 @@ assignment; a judge updates their own row until they call `POST
 stops further score writes for it. See `JUDGING.md` for how raw scores
 become weighted, normalized rankings.
 
+## `votes` (T3)
+
+| Column | Type | Notes |
+|---|---|---|
+| id | SERIAL PK | |
+| submission_id | FK → submissions | ON DELETE CASCADE |
+| voter_id | FK → users | ON DELETE CASCADE |
+| created_at | TIMESTAMPTZ | |
+
+`UNIQUE (submission_id, voter_id)` — the database-level defense against a
+double vote; see `THREAT_MODEL.md`. Written only by
+`POST /api/voting/:id/vote`, participant role only.
+
+## `comments` (T3)
+
+| Column | Type | Notes |
+|---|---|---|
+| id | SERIAL PK | |
+| submission_id | FK → submissions | ON DELETE CASCADE |
+| user_id | FK → users | ON DELETE CASCADE |
+| body | TEXT | max 2000 chars, enforced in the API |
+| created_at | TIMESTAMPTZ | |
+
+Append-only — no edit or delete endpoint exists for a comment.
+
+## `audit_log` (T3)
+
+| Column | Type | Notes |
+|---|---|---|
+| id | SERIAL PK | |
+| actor_id | FK → users, nullable | `ON DELETE SET NULL` — the row survives its actor being deleted |
+| action | TEXT | e.g. `VOTE_CAST`, `VOTE_REJECTED_DUPLICATE`, `RATE_LIMIT_TRIGGERED`, `USER_CREATED`, `JUDGES_ASSIGNED`, `RESULTS_PUBLISHED` |
+| object | TEXT | free-form reference, e.g. `submission:12` |
+| metadata | JSONB | action-specific extra detail |
+| created_at | TIMESTAMPTZ | |
+
+Append-only, read via `GET /api/audit` (organizer/admin only). Written by
+`src/audit.js`'s `logAudit()` helper, called from `voting.js`,
+`users.js`, and `judging.js`.
+
+## `events.results_published` (T3)
+
+A boolean column added to `events` (default `false`). Gates
+`GET /api/voting/results` for non-staff callers — `403` until an
+organizer/admin calls `POST /api/voting/publish`. Judging results
+(`/api/judging/results`) are a separate endpoint and are unaffected by
+this flag; it only gates the T3 community-vote view.
+
 ## Import / export paths
 
 - **Export:** `GET /api/gallery` returns submitted projects as JSON
   (`?q=` and `?track=` filters). `GET /api/judging/export.csv?event_id=&type=`
   (`type` is `results`, `assignments`, or `scores`) returns judging data as
-  CSV, organizer/admin only.
+  CSV, organizer/admin only. `GET /api/voting/results?event_id=` returns
+  community vote counts as JSON (gated by `results_published`).
 - **Import:** none yet. `backend/db/seed.js` is the only way data enters a
   fresh instance today (4 role accounts, 1 event, 1 team, 1 submission, 4
-  rubric criteria, 1 judge assignment).
+  rubric criteria, 1 judge assignment). `backend/db/reset.js`
+  (`npm run reset`) truncates every table and re-runs the seed — useful
+  after running the test suite, which creates real rows against whatever
+  database the backend is pointed at (see README.md "Running tests").

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { pool } from "../db.js";
 import { requireAuth, requireRole } from "../auth.js";
 import { asyncHandler } from "../asyncHandler.js";
+import { logAudit } from "../audit.js";
 
 export const usersRouter = Router();
 
@@ -61,6 +62,7 @@ usersRouter.post(
          VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, created_at`,
         [name, email, passwordHash, role]
       );
+      await logAudit(req.user.id, "USER_CREATED", `user:${rows[0].id}`, { role });
       res.status(201).json(rows[0]);
     } catch (err) {
       if (err.code === "23505") {

@@ -7,6 +7,9 @@ import { submissionsRouter } from "./routes/submissions.js";
 import { galleryRouter } from "./routes/gallery.js";
 import { judgingRouter } from "./routes/judging.js";
 import { usersRouter } from "./routes/users.js";
+import { statsRouter } from "./routes/stats.js";
+import { votingRouter } from "./routes/voting.js";
+import { auditRouter } from "./routes/audit.js";
 
 const app = express();
 app.use(cors());
@@ -23,6 +26,9 @@ app.use("/api/submissions", submissionsRouter);
 app.use("/api/gallery", galleryRouter);
 app.use("/api/judging", judgingRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/stats", statsRouter);
+app.use("/api/voting", votingRouter);
+app.use("/api/audit", auditRouter);
 
 // Catch anything an async route handler throws so it becomes a JSON 500
 // instead of an unhandled-rejection crash.

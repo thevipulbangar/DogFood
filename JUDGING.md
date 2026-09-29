@@ -129,6 +129,25 @@ API call, and a plain `<a href>` can't attach one — so
 `frontend/lib/api.ts`'s `downloadCsv()` fetches the CSV with the header
 attached and triggers the browser download client-side via a `Blob`.
 
+## Community voting (T3) vs. judging — kept deliberately separate
+
+Community votes and judge scores are two independent signals and are
+never merged into one number. Judges and organizers cannot cast votes
+(`requireRole("participant")` on `POST /api/voting/:id/vote`) — the
+people scoring a project on the rubric shouldn't also be moving its
+crowd-popularity count. `GET /api/voting/results` and
+`GET /api/judging/results` are separate endpoints, shown side by side on
+the Results page, and it's left to a human organizer to weigh them,
+rather than the platform silently blending "how the crowd liked it" into
+"how it scored on the rubric."
+
+Vote integrity (one vote per project per voter via a database unique
+constraint, a per-voter rate limit, hidden results until published, and
+an audit trail of every vote/rejection) is covered in full in
+`THREAT_MODEL.md`, which also documents what's explicitly *not*
+defended against (Sybil accounts, primarily) rather than implying more
+coverage than actually exists.
+
 ## API summary
 
 | Endpoint | Role | Purpose |
@@ -145,3 +164,9 @@ attached and triggers the browser download client-side via a `Blob`.
 | `POST /api/judging/assignments/:id/complete` | the assigned judge only | lock in the score |
 | `GET /api/judging/results?event_id=` | organizer/admin | normalized rankings per submission |
 | `GET /api/judging/export.csv?event_id=&type=` | organizer/admin | CSV export |
+| `GET /api/voting/feed?event_id=` | participant | randomized list of votable submissions |
+| `POST /api/voting/:id/vote` | participant | cast one vote (rate-limited, one per submission) |
+| `GET /api/voting/:id/comments`, `POST .../comments` | any authenticated user | read/post comments |
+| `GET /api/voting/results?event_id=` | any authenticated user (staff bypass the publish gate) | vote counts, hidden until published |
+| `POST /api/voting/publish` | organizer/admin | publish or unpublish vote results |
+| `GET /api/audit?limit=` | organizer/admin | recent audit log entries |
