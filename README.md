@@ -89,10 +89,13 @@ See `JUDGING.md` for the judging methodology in detail.
 - Full abuse-model write-up, including what's explicitly NOT defended
   against, in `THREAT_MODEL.md`
 
-**T4 — Stretch (partial):** the embeddable gallery widget (`/embed`) is
-real, backed by `GET /api/gallery`. Certificate generation, signed judge
-records, an OpenAPI spec, and bulk import/export are not implemented —
-see `acceptance-report.txt` for the honest gap list.
+**T4 — Stretch (partial):**
+- The embeddable gallery widget (`/embed`) is real, backed by `GET /api/gallery`.
+- Full OpenAPI 3.0 spec covering every endpoint: `openapi.yaml` in the
+  repo root, also served live at `GET /api/openapi.yaml`. Every UI action
+  goes through this same REST API — nothing server-side-only.
+- Certificate generation, signed judge records, and bulk import/export
+  are not implemented — see `acceptance-report.txt` for the honest gap list.
 
 ## Project layout
 

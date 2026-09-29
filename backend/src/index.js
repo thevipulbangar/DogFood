@@ -1,5 +1,9 @@
 import express from "express";
 import cors from "cors";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { authRouter } from "./routes/auth.js";
 import { eventsRouter } from "./routes/events.js";
 import { teamsRouter } from "./routes/teams.js";
@@ -17,6 +21,13 @@ app.use(express.json());
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+// T4 bonus: "API First" — every UI action goes through this REST API, and
+// the full spec is published here as well as at openapi.yaml in the repo
+// root (see backend/openapi.yaml, kept in sync with the root copy).
+app.get("/api/openapi.yaml", (_req, res) => {
+  res.type("text/yaml").sendFile(path.join(__dirname, "..", "openapi.yaml"));
 });
 
 app.use("/api/auth", authRouter);

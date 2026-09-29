@@ -1,0 +1,554 @@
+# Canonical copy at repo root for review; backend/openapi.yaml is a duplicate
+# served at GET /api/openapi.yaml — keep the two in sync when editing either.
+openapi: 3.0.3
+info:
+  title: Dogfood 2026 API
+  description: >
+    Self-hostable hackathon submission and judging platform. Every UI action
+    in the frontend goes through this API — there is no server-side-only
+    logic the UI can do that a script can't. JWT bearer auth
+    (`Authorization: Bearer <token>`) on every route except signup/login/
+    forgot-password/reset-password and the public gallery/stats endpoints.
+  version: "1.0.0"
+  license:
+    name: See repository LICENSE
+servers:
+  - url: http://localhost:8000
+    description: Local docker-compose instance
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Events
+  - name: Teams
+  - name: Submissions
+  - name: Gallery
+  - name: Judging
+  - name: Users
+  - name: Voting
+  - name: Audit
+  - name: Stats
+
+paths:
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Create a participant account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/AuthResponse" } } } }
+        "409": { description: Email already in use }
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AuthResponse" } } } }
+        "401": { description: Invalid credentials }
+
+  /api/auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request a password reset token (emailed in a real deployment; logged to stdout in this self-hosted build)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [email], properties: { email: { type: string } } }
+      responses:
+        "200": { description: Always 200, regardless of whether the email exists (no account enumeration) }
+
+  /api/auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Complete a password reset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties: { token: { type: string }, password: { type: string, minLength: 8 } }
+      responses:
+        "200": { description: Password updated }
+        "400": { description: Invalid or expired token }
+
+  /api/events:
+    get:
+      tags: [Events]
+      summary: List all events
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Event" } } } } }
+    post:
+      tags: [Events]
+      summary: Create an event
+      description: Organizer/admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventInput" }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Event" } } } }
+        "403": { description: Forbidden for this role }
+
+  /api/events/{id}:
+    put:
+      tags: [Events]
+      summary: Update an event
+      description: Organizer/admin only. Partial update — omitted fields are unchanged.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventInput" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Event" } } } }
+        "404": { description: Not found }
+
+  /api/teams/me:
+    get:
+      tags: [Teams]
+      summary: The caller's own team, members, and submission
+      responses:
+        "200": { description: OK }
+
+  /api/teams:
+    get:
+      tags: [Teams]
+      summary: List every team with members and submission status
+      description: Organizer/admin only.
+      parameters:
+        - { name: event_id, in: query, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Forbidden for this role }
+    post:
+      tags: [Teams]
+      summary: Create a team (caller becomes the first member and captain)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_id, name]
+              properties: { event_id: { type: integer }, name: { type: string } }
+      responses:
+        "201": { description: Created }
+
+  /api/teams/join:
+    post:
+      tags: [Teams]
+      summary: Join a team by invite code
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [code], properties: { code: { type: string } } }
+      responses:
+        "200": { description: Joined }
+        "404": { description: Invalid invite code }
+
+  /api/submissions:
+    post:
+      tags: [Submissions]
+      summary: Start (or resume) a draft submission for the caller's team
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmissionInput" }
+      responses:
+        "201": { description: Created }
+        "403": { description: Not a member of this team, or deadline has passed }
+        "409": { description: This team already has a submission }
+
+  /api/submissions/{id}:
+    put:
+      tags: [Submissions]
+      summary: Edit a draft submission
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmissionInput" }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not your team, deadline passed, or already finalized }
+
+  /api/submissions/{id}/submit:
+    post:
+      tags: [Submissions]
+      summary: Finalize a submission (locks it — is_draft becomes false)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not your team, or deadline has passed }
+
+  /api/gallery:
+    get:
+      tags: [Gallery]
+      summary: Public, searchable list of submitted (non-draft) projects
+      security: []
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: "Full-text match against title/description" }
+        - { name: track, in: query, schema: { type: string } }
+      responses:
+        "200": { description: OK }
+
+  /api/gallery/{id}:
+    get:
+      tags: [Gallery]
+      summary: Public detail for one submitted project (drafts 404)
+      security: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+        "404": { description: Not found or still a draft }
+
+  /api/judging/rubric:
+    get:
+      tags: [Judging]
+      summary: Read an event's rubric criteria
+      parameters:
+        - { name: event_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Judging]
+      summary: Replace an event's entire rubric
+      description: Organizer/admin only. Weights must sum to 100. Deleting a criterion cascade-deletes any scores already recorded against it.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_id, criteria]
+              properties:
+                event_id: { type: integer }
+                criteria:
+                  type: array
+                  items:
+                    type: object
+                    required: [name, weight]
+                    properties: { name: { type: string }, description: { type: string }, weight: { type: number } }
+      responses:
+        "200": { description: OK }
+        "400": { description: Weights don't sum to 100, or missing fields }
+
+  /api/judging/assign:
+    post:
+      tags: [Judging]
+      summary: Round-robin assign judges to every submitted project for an event
+      description: Organizer/admin only. Idempotent — re-running only fills gaps. Requires the event to have rubric criteria first.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_id]
+              properties: { event_id: { type: integer }, judges_per_submission: { type: integer, default: 3 } }
+      responses:
+        "201": { description: OK }
+        "400": { description: No rubric configured, or no judges exist }
+
+  /api/judging/assignments:
+    get:
+      tags: [Judging]
+      summary: All judge assignments for an event
+      description: Organizer/admin only.
+      parameters:
+        - { name: event_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+
+  /api/judging/my-assignments:
+    get:
+      tags: [Judging]
+      summary: The calling judge's own assignments
+      responses:
+        "200": { description: OK }
+
+  /api/judging/assignments/{id}:
+    get:
+      tags: [Judging]
+      summary: One assignment's detail (submission, rubric, existing scores)
+      description: The assigned judge, or organizer/admin.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not this judge's assignment }
+
+  /api/judging/assignments/{id}/scores:
+    post:
+      tags: [Judging]
+      summary: Save/update draft scores for an assignment
+      description: The assigned judge only — not even an admin can score on a judge's behalf.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scores]
+              properties:
+                scores:
+                  type: array
+                  items:
+                    type: object
+                    required: [criterion_id, raw_score]
+                    properties: { criterion_id: { type: integer }, raw_score: { type: number, minimum: 0, maximum: 10 }, notes: { type: string } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not this judge's assignment }
+
+  /api/judging/assignments/{id}/complete:
+    post:
+      tags: [Judging]
+      summary: Lock in the score (no further edits after this)
+      description: The assigned judge only.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+        "400": { description: No rubric criteria — nothing to score }
+
+  /api/judging/results:
+    get:
+      tags: [Judging]
+      summary: Normalized rankings per submission
+      description: Organizer/admin only. See JUDGING.md for the z-score normalization method.
+      parameters:
+        - { name: event_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+
+  /api/judging/export.csv:
+    get:
+      tags: [Judging]
+      summary: CSV export of results, assignments, or scores
+      description: Organizer/admin only.
+      parameters:
+        - { name: event_id, in: query, required: true, schema: { type: integer } }
+        - { name: type, in: query, required: true, schema: { type: string, enum: [results, assignments, scores] } }
+      responses:
+        "200": { description: CSV file, content: { text/csv: {} } }
+
+  /api/users:
+    get:
+      tags: [Users]
+      summary: List accounts
+      description: Admin only.
+      parameters:
+        - { name: role, in: query, schema: { type: string, enum: [participant, judge, organizer, admin] } }
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Users]
+      summary: Create a judge or organizer account
+      description: Admin only. Cannot create another admin — there is exactly one, enforced at the database level.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, role]
+              properties:
+                name: { type: string }
+                email: { type: string }
+                password: { type: string, minLength: 8 }
+                role: { type: string, enum: [judge, organizer] }
+      responses:
+        "201": { description: Created }
+        "400": { description: Invalid role }
+        "409": { description: Email already in use }
+
+  /api/users/{id}:
+    delete:
+      tags: [Users]
+      summary: Delete an account
+      description: Admin only. Cannot delete yourself or the admin account.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted }
+        "400": { description: Cannot delete your own account }
+        "409": { description: This user created a team; reassign or delete it first }
+
+  /api/voting/feed:
+    get:
+      tags: [Voting]
+      summary: Randomized list of votable submissions for an event
+      description: Participant only. Excludes drafts and the caller's own team.
+      parameters:
+        - { name: event_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not a participant }
+
+  /api/voting/{submissionId}/vote:
+    post:
+      tags: [Voting]
+      summary: Cast one vote for a submission
+      description: >
+        Participant only. One vote per (submission, voter), enforced by a
+        database unique constraint. Rate-limited per event
+        (events.vote_rate_limit, default 10/minute). Rejected if voting is
+        closed for the event (events.voting_open).
+      parameters:
+        - { name: submissionId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "201": { description: Vote cast }
+        "400": { description: Draft submission, or voting for your own team }
+        "403": { description: Not a participant, or voting is closed for this event }
+        "409": { description: Already voted for this submission }
+        "429": { description: Rate limit exceeded }
+
+  /api/voting/{submissionId}/comments:
+    get:
+      tags: [Voting]
+      summary: List comments on a submission
+      parameters:
+        - { name: submissionId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+    post:
+      tags: [Voting]
+      summary: Post a comment (any authenticated role, max 2000 chars, append-only)
+      parameters:
+        - { name: submissionId, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [body], properties: { body: { type: string, maxLength: 2000 } } }
+      responses:
+        "201": { description: Created }
+
+  /api/voting/results:
+    get:
+      tags: [Voting]
+      summary: Vote counts per submission
+      description: Hidden (403) from non-staff until an organizer publishes them via /publish. Organizer/admin can always preview.
+      parameters:
+        - { name: event_id, in: query, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+        "403": { description: Not published yet }
+
+  /api/voting/publish:
+    post:
+      tags: [Voting]
+      summary: Publish or unpublish vote results
+      description: Organizer/admin only.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_id]
+              properties: { event_id: { type: integer }, published: { type: boolean, default: true } }
+      responses:
+        "200": { description: OK }
+
+  /api/audit:
+    get:
+      tags: [Audit]
+      summary: Recent audit log entries
+      description: Organizer/admin only. Append-only trail of votes, rejections, rate limits, account creation, judge assignment, publish events.
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 500 } }
+      responses:
+        "200": { description: OK }
+
+  /api/stats:
+    get:
+      tags: [Stats]
+      summary: Public aggregate counts (events/teams/submissions) for the marketing homepage
+      security: []
+      responses:
+        "200": { description: OK }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string }
+        user: { $ref: "#/components/schemas/User" }
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [participant, judge, organizer, admin] }
+    Event:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        start_date: { type: string, format: date, nullable: true }
+        end_date: { type: string, format: date, nullable: true }
+        submission_deadline: { type: string, format: date-time }
+        tracks: { type: array, items: { type: string } }
+        prizes: { type: string, nullable: true }
+        results_published: { type: boolean }
+        voting_open: { type: boolean }
+        vote_rate_limit: { type: integer }
+    EventInput:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        submission_deadline: { type: string, format: date-time }
+        tracks: { type: array, items: { type: string } }
+        prizes: { type: string }
+        voting_open: { type: boolean }
+        vote_rate_limit: { type: integer }
+    SubmissionInput:
+      type: object
+      properties:
+        team_id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        track: { type: string }
+        repo_url: { type: string }
+        demo_url: { type: string }
