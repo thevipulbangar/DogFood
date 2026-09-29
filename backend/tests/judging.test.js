@@ -208,3 +208,16 @@ test("CSV export: results export returns CSV content", async () => {
   assert.equal(status, 200);
   assert.match(data, /submission_id,title,team_name/);
 });
+
+test("assign: refuses to assign judges to an event with no rubric configured", async () => {
+  const orgToken = await login("organizer@dogfood.dev");
+  const { data: created } = await api(
+    "POST",
+    "/api/events",
+    { name: `Rubric-less Event ${Date.now()}`, submission_deadline: "2099-01-01T00:00:00Z" },
+    orgToken
+  );
+  const { status, data } = await api("POST", "/api/judging/assign", { event_id: created.id }, orgToken);
+  assert.equal(status, 400);
+  assert.match(data.error, /no rubric criteria/);
+});

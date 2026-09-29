@@ -88,6 +88,16 @@ judgingRouter.post(
     const { event_id, judges_per_submission = 3 } = req.body ?? {};
     if (!event_id) return res.status(400).json({ error: "event_id is required" });
 
+    const { rows: rubricRows } = await pool.query(
+      "SELECT id FROM rubric_criteria WHERE event_id = $1",
+      [event_id]
+    );
+    if (rubricRows.length === 0) {
+      return res.status(400).json({
+        error: "this event has no rubric criteria yet — configure a rubric before assigning judges",
+      });
+    }
+
     const { rows: judges } = await pool.query(
       "SELECT id FROM users WHERE role = 'judge' ORDER BY id"
     );
@@ -295,6 +305,15 @@ judgingRouter.post(
       "SELECT id FROM rubric_criteria WHERE event_id = $1",
       [assignment.event_id]
     );
+    // Belt-and-suspenders: POST /assign already refuses to create
+    // assignments for a rubric-less event, but this endpoint doesn't trust
+    // that — a rubric criterion deleted after assignment would otherwise
+    // let a "complete" through with zero scores and no error.
+    if (criteria.length === 0) {
+      return res.status(400).json({
+        error: "this event has no rubric criteria — nothing to score, contact an organizer",
+      });
+    }
     const { rows: scores } = await pool.query(
       "SELECT criterion_id FROM scores WHERE assignment_id = $1",
       [assignment.id]

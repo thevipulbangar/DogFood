@@ -1,13 +1,113 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Shuffle } from "lucide-react";
-import { api, type ResultRow } from "@/lib/api";
-import { Badge, Button, Panel, Skeleton, buttonClass } from "@/components/ui/primitives";
+import { AlertTriangle, Download, Plus, Save, Shuffle, Trash2 } from "lucide-react";
+import { api, type ResultRow, type RubricCriterion } from "@/lib/api";
+import { Badge, Button, Panel, Skeleton, buttonClass, fieldClass } from "@/components/ui/primitives";
 import { EmptyState, ErrorState } from "@/components/ui/States";
 import { useToast } from "@/components/ui/Toast";
+import { cn } from "@/lib/utils";
 
 type EventRow = { id: number; name: string };
+type DraftCriterion = { key: string; name: string; description: string; weight: string };
+
+let draftKeySeq = 0;
+function toDraft(c: RubricCriterion): DraftCriterion {
+  return { key: `existing-${c.id}`, name: c.name, description: c.description ?? "", weight: String(c.weight) };
+}
+function blankDraft(): DraftCriterion {
+  return { key: `new-${++draftKeySeq}`, name: "", description: "", weight: "" };
+}
+
+/**
+ * The rubric editor for one event (GET/POST /api/judging/rubric).
+ * Saving REPLACES the whole rubric — the backend deletes and re-inserts
+ * criteria, and rubric_criteria → scores cascades on delete, so replacing
+ * criteria that judges already scored against deletes those scores. The
+ * warning banner below says so; there's no way around it without changing
+ * the backend's replace-not-patch semantics, which the T2 write-up
+ * (JUDGING.md) documents deliberately for simplicity.
+ */
+function RubricEditor({ eventId }: { eventId: number }) {
+  const toast = useToast();
+  const [rows, setRows] = useState<DraftCriterion[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const load = () => {
+    setRows(null);
+    api
+      .getRubric(eventId)
+      .then((criteria) => setRows(criteria.length ? criteria.map(toDraft) : [blankDraft()]))
+      .catch((err: Error) => setError(err.message));
+  };
+  useEffect(load, [eventId]);
+
+  if (error) return <ErrorState onRetry={() => { setError(undefined); load(); }} />;
+  if (rows === null) return <Skeleton className="h-40" />;
+
+  const total = rows.reduce((sum, r) => sum + (Number(r.weight) || 0), 0);
+  const balanced = Math.abs(total - 100) < 0.01;
+
+  const update = (key: string, patch: Partial<DraftCriterion>) =>
+    setRows((rs) => rs!.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const remove = (key: string) => setRows((rs) => rs!.filter((r) => r.key !== key));
+  const add = () => setRows((rs) => [...rs!, blankDraft()]);
+
+  const save = async () => {
+    const criteria = rows
+      .filter((r) => r.name.trim())
+      .map((r) => ({ name: r.name.trim(), description: r.description.trim() || undefined, weight: Number(r.weight) }));
+    if (criteria.length === 0) {
+      toast({ tone: "warn", title: "Add at least one criterion" });
+      return;
+    }
+    if (!balanced) {
+      toast({ tone: "warn", title: "Weights must sum to 100", body: `Currently ${total}` });
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.setRubric(eventId, criteria);
+      toast({ tone: "ok", title: "Rubric saved" });
+      load();
+    } catch (err) {
+      toast({ tone: "warn", title: "Couldn't save rubric", body: err instanceof Error ? err.message : undefined });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Panel title="Rubric" meta={`Weights ${total} / 100`} className="max-w-2xl">
+      <div className="mb-4 flex items-start gap-2 rounded-sm border border-warn/30 bg-warn/[0.06] p-3 text-[12.5px] text-white/70">
+        <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
+        <p>Saving replaces the entire rubric. If judges have already scored against the current criteria, removing or renaming those criteria deletes their scores.</p>
+      </div>
+      <div className="space-y-3">
+        {rows.map((r) => (
+          <div key={r.key} className="grid grid-cols-[1fr_1fr_90px_auto] items-start gap-2">
+            <input className={cn(fieldClass, "h-9")} placeholder="Criterion name" value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} />
+            <input className={cn(fieldClass, "h-9")} placeholder="Description (optional)" value={r.description} onChange={(e) => update(r.key, { description: e.target.value })} />
+            <input className={cn(fieldClass, "h-9")} type="number" min={0} step="0.5" placeholder="Weight" value={r.weight} onChange={(e) => update(r.key, { weight: e.target.value })} />
+            <button type="button" aria-label="Remove criterion" className="flex h-9 w-9 items-center justify-center text-white/40 hover:text-danger" onClick={() => remove(r.key)}>
+              <Trash2 size={15} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <button type="button" className={buttonClass("secondary", "sm")} onClick={add}>
+          <Plus size={13} className="mr-1" /> Add criterion
+        </button>
+        <span className={cn("font-mono text-xs", balanced ? "text-ok" : "text-warn")}>{total} / 100</span>
+        <Button className="ml-auto" onClick={save} disabled={saving}>
+          <Save size={15} className="mr-1.5" /> {saving ? "Saving…" : "Save rubric"}
+        </Button>
+      </div>
+    </Panel>
+  );
+}
 
 /**
  * The real, backend-backed organizer/admin judging console:
@@ -99,6 +199,8 @@ export function RealJudgingOps() {
           </button>
         </div>
       </div>
+
+      {eventId !== null && <RubricEditor eventId={eventId} />}
 
       <Panel className="overflow-x-auto p-0">
         {loadingResults || results === null ? (

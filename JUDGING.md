@@ -36,6 +36,15 @@ participant could self-grant.
 
 ## Assignment: round-robin
 
+An event must have at least one rubric criterion before judges can be
+assigned to it — `POST /api/judging/assign` refuses with a `400` otherwise
+(`this event has no rubric criteria yet`), and `POST
+/assignments/:id/complete` independently re-checks the same thing before
+letting a judge complete a review, in case criteria were somehow removed
+after assignment. Without this, an event with an empty rubric would let a
+judge "complete" a review with nothing to score, producing a silent,
+meaningless all-zero result rather than an error.
+
 `POST /api/judging/assign` (organizer/admin only) assigns every submitted
 (non-draft) project to `judges_per_submission` judges (default 3, or fewer
 if there aren't that many judges). It walks submissions in order and, for
