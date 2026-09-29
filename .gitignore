@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+*.tsbuildinfo
+
+# Env / secrets — docker-compose.yml holds dev-only defaults intentionally
+# (this is a self-hosted, local-first stack), but a real .env should never
+# be committed if someone adds one later.
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+*.log
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Postgres data volume, if ever bind-mounted instead of a named volume
+pgdata/

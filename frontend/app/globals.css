@@ -1,0 +1,251 @@
+@import "tailwindcss";
+
+/* ──────────────────────────────────────────────────────────────
+   DOGFOOD DESIGN TOKENS
+   Every color, radius, font and easing used by the app lives here.
+   Change the accent in one place and the whole system follows.
+   ────────────────────────────────────────────────────────────── */
+@theme {
+  /* Surfaces — graphite, not pure black */
+  --color-bg: #0a0a0b;
+  --color-surface: #111113;
+  --color-surface-2: #17171a;
+  --color-surface-3: #1f1f23;
+  --color-line: rgb(255 255 255 / 0.07);
+  --color-line-strong: rgb(255 255 255 / 0.14);
+
+  /* Ink */
+  --color-fg: #edece8;
+  --color-fg-2: #b5b4ae;
+  --color-muted: #7f7e79;
+
+  /* Signal: International Orange (aerospace / mission control) */
+  --color-accent: #ff5a1f;
+  --color-accent-hover: #ff7440;
+  --color-accent-soft: rgb(255 90 31 / 0.12);
+  --color-accent-ink: #120602;
+
+  /* Secondary — cool steel, used sparingly */
+  --color-steel: #7aa7ff;
+  --color-steel-soft: rgb(122 167 255 / 0.12);
+
+  /* Status — reserved, always paired with icon/label */
+  --color-ok: #3ddc84;
+  --color-warn: #f5b83d;
+  --color-danger: #f2555a;
+
+  /* Paper — certificates and the self-hosting manifesto */
+  --color-paper: #f3f0e8;
+  --color-paper-2: #e8e4d9;
+  --color-ink: #151412;
+
+  /* Charts — validated for CVD separation on --color-surface (dark) */
+  --color-chart-1: #f2541b;
+  --color-chart-2: #5b8def;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+
+  --breakpoint-3xl: 1680px;
+
+  --animate-pulse-dot: pulse-dot 2.4s ease-in-out infinite;
+  --animate-scan: scan 6s linear infinite;
+  --animate-marquee: marquee 40s linear infinite;
+
+  @keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+    50% { box-shadow: 0 0 0 4px transparent; opacity: 0.55; }
+  }
+  @keyframes scan {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(100vh); }
+  }
+  @keyframes shimmer {
+    to { transform: translateX(100%); }
+  }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+}
+
+:root {
+  color-scheme: dark;
+  --grid-size: 48px;
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+}
+
+html {
+  background: var(--color-bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+/* Focus is part of the design, not an afterthought */
+:focus-visible {
+  outline: 1.5px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Thin technical scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-surface-3) transparent;
+}
+
+/* ── Utilities ─────────────────────────────────────────────── */
+
+/* Technical micro-label: mono, uppercase, tracked */
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* THE EVENT GRID — the signature motif */
+@utility event-grid {
+  background-image:
+    linear-gradient(to right, var(--color-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+}
+
+@utility event-grid-fine {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
+@utility grain {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: var(--noise);
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+  }
+}
+
+@utility fade-mask-b {
+  mask-image: linear-gradient(to bottom, black 55%, transparent);
+}
+
+@utility fade-mask-radial {
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pressable buttons. The face rests on a base (drawn as box-shadows, so it works
+   inside clipped containers); hover sinks it partway, press seats it fully.
+   Depth comes from --d (set per size); colours from --btn-base / --btn-edge. */
+.btn-3d {
+  --d: 4px;
+  box-shadow: 0 var(--d) 0 0 var(--btn-base), 0 var(--d) 0 1px var(--btn-edge);
+}
+.btn-3d:hover {
+  transform: translateY(calc(var(--d) * 0.35));
+  box-shadow: 0 calc(var(--d) * 0.65) 0 0 var(--btn-base), 0 calc(var(--d) * 0.65) 0 1px var(--btn-edge);
+}
+.btn-3d:active {
+  transform: translateY(var(--d));
+  box-shadow: 0 0 0 0 var(--btn-base), 0 0 0 1px var(--btn-edge);
+}
+.btn-3d:disabled {
+  transform: none;
+}
+
+/* Range input — the judge's primary instrument */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  background: transparent;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(to right, var(--color-accent) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
+}
+.range::-moz-range-track {
+  height: 2px;
+  background: linear-gradient(to right, var(--color-accent) var(--fill, 0%), var(--color-line-strong) var(--fill, 0%));
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
+  background: var(--color-fg);
+  border: 3px solid var(--color-bg);
+  outline: 1px solid var(--color-accent);
+  border-radius: 2px;
+  transition: transform 150ms var(--ease-out-expo);
+}
+.range::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: var(--color-fg);
+  border: 3px solid var(--color-bg);
+  outline: 1px solid var(--color-accent);
+  border-radius: 2px;
+}
+.range:active::-webkit-slider-thumb { transform: scale(1.25); }
+.range:focus-visible { outline: none; }
+.range:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.range:disabled { cursor: not-allowed; opacity: 0.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Printing a certificate prints only the certificate */
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: fixed; inset: 0; margin: auto; box-shadow: none !important; }
+  @page { size: A4 landscape; margin: 0; }
+}

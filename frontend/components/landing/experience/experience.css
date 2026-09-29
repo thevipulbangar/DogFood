@@ -1,0 +1,137 @@
+/* Landing experience — scoped helpers. Base tokens come from app/globals.css. */
+
+/* ── Theme ─────────────────────────────────────────────────────
+   The landing runs on the app's graphite, with text a step brighter for
+   large-format reading. --fg-rgb is for translucent strokes:
+   rgb(var(--fg-rgb) / 0.2). */
+.ink {
+  --color-bg: #0a0a0b;
+  --color-surface: #111113;
+  --color-surface-2: #17171a;
+  --color-surface-3: #1f1f23;
+  --color-line: rgb(255 255 255 / 0.07);
+  --color-line-strong: rgb(255 255 255 / 0.14);
+  --color-fg: #edece8;
+  --color-fg-2: #c2c1bb;
+  --color-muted: #9a9993;
+  --color-accent: #ff5a1f;
+  --color-accent-hover: #ff7440;
+  --color-accent-soft: rgb(255 90 31 / 0.12);
+  --color-accent-ink: #120602;
+  --color-steel: #7aa7ff;
+  --color-ok: #3ddc84;
+  --btn-neutral-base: #0c0c0e;
+  --btn-neutral-edge: rgb(255 255 255 / 0.16);
+  --fg-rgb: 255 255 255;
+  color-scheme: dark;
+  color: var(--color-fg);
+}
+
+/* The closing block keeps the app's darkness but not its tech grid. */
+.xp-cta .event-grid { opacity: 0.35; }
+
+/* Lenis smooth scrolling */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+/* Cursor-following border light. Set --mx / --my on the element. */
+.illuminated::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(220px circle at var(--mx, -400px) var(--my, -400px), rgb(255 90 31 / 0.7), transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.5s var(--ease-out-expo);
+  pointer-events: none;
+  z-index: 1;
+}
+.illuminated:hover::before { opacity: 1; }
+
+/* Physical button response: light sweep across the face on hover. */
+.xp-btn {
+  overflow: hidden;
+  isolation: isolate;
+}
+.xp-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.28) 50%, transparent 80%);
+  transform: translateX(-120%);
+  transition: transform 0.7s var(--ease-out-expo);
+  z-index: -1;
+}
+.xp-btn:hover::after { transform: translateX(120%); }
+
+/* ── Split-flap tile ───────────────────────────────────────────
+   Two static halves show the resting glyphs; on each advance a top
+   flap falls away (old glyph) and a bottom flap drops in (new glyph). */
+.flap {
+  /* slightly translucent, so the portal's light reads faintly through the board */
+  --tile: rgb(20 20 22 / 0.82);
+  --tile-hi: rgb(31 31 35 / 0.82);
+  --glyph-base: #f1f0ec;
+  --glyph: var(--glyph-base);
+  --flip: 90ms;
+  position: relative;
+  perspective: 1600px;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--glyph);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 28px -14px rgb(0 0 0 / 0.9);
+  cursor: default;
+}
+.flap[data-accent="1"] { --glyph: #ff5a1f; }
+/* the resting bottom half still shows the previous glyph until the flap lands — never tint it */
+.flap-half.stale { color: var(--glyph-base); }
+.flap-half {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  overflow: hidden;
+  background: var(--tile);
+  backface-visibility: hidden;
+}
+.flap-half.top { top: 0; border-radius: 4px 4px 0 0; transform-origin: 50% 100%; background: linear-gradient(to bottom, var(--tile-hi), var(--tile)); }
+.flap-half.bottom { bottom: 0; border-radius: 0 0 4px 4px; transform-origin: 50% 0; }
+.flap-glyph {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 200%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -0.02em;
+}
+.flap-half.top .flap-glyph { top: 0; }
+.flap-half.bottom .flap-glyph { bottom: 0; }
+.flap-half.fall { z-index: 2; animation: flap-fall var(--flip) ease-in forwards; }
+.flap-half.drop { z-index: 2; transform: rotateX(90deg); animation: flap-drop var(--flip) ease-out var(--flip) forwards; }
+/* the hinge */
+.flap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% - 0.5px);
+  height: 1px;
+  background: rgb(0 0 0 / 0.55);
+  z-index: 3;
+}
+@keyframes flap-fall { to { transform: rotateX(-90deg); filter: brightness(0.7); } }
+@keyframes flap-drop { from { transform: rotateX(90deg); filter: brightness(1.4); } to { transform: rotateX(0deg); filter: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .xp-btn::after { display: none; }
+  .flap-half.fall, .flap-half.drop { display: none; }
+}

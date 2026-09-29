@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: dogfood
+      POSTGRES_PASSWORD: dogfood
+      POSTGRES_DB: dogfood
+    ports:
+      # Host port 55432, not 5432 — a machine with its own local Postgres
+      # install already using 5432 would otherwise silently steal this
+      # connection instead of reaching the container.
+      - "55432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dogfood -d dogfood"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgres://dogfood:dogfood@db:5432/dogfood
+      JWT_SECRET: dev-secret-change-me
+      PORT: 8000
+      APP_URL: http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
