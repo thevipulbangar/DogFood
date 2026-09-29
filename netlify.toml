@@ -1,0 +1,9 @@
+# Netlify builds the Next.js frontend only. The app lives in frontend/,
+# so the build must run there — without `base`, Netlify builds from the
+# repo root (no package.json) and the Next.js runtime fails.
+# The backend (Express + Postgres) is hosted separately; set
+# NEXT_PUBLIC_API_URL in Netlify's environment variables to its URL.
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"
