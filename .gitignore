@@ -28,3 +28,6 @@ Thumbs.db
 
 # Postgres data volume, if ever bind-mounted instead of a named volume
 pgdata/
+
+# Local Netlify folder
+.netlify
