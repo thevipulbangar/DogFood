@@ -7,7 +7,13 @@
 import pg from "pg";
 import bcrypt from "bcryptjs";
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+// Timeouts turn a stuck connection or query into a logged error instead of
+// a silent hang that keeps the server from ever starting.
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 10000,
+  statement_timeout: 20000,
+});
 
 async function waitForDb(retries = 10) {
   for (let i = 0; i < retries; i++) {
@@ -30,12 +36,15 @@ async function waitForDb(retries = 10) {
 // would silently skip every step added after the first deploy, forever,
 // on an instance that was seeded before that step existed.
 async function seed() {
+  console.log("seed: starting");
   await waitForDb();
 
   const users = await ensureUsers();
+  console.log("seed: users ok");
   const eventId = await ensureEvent();
   const teamId = await ensureTeam(eventId, users.participant);
   const submissionId = await ensureSubmission(teamId);
+  console.log("seed: event/team/submission ok");
   await ensureRubric(eventId);
   await ensureJudgeAssignment(eventId, users.judge, submissionId);
 
@@ -159,6 +168,7 @@ try {
 } catch (err) {
   console.error("seed failed:", err);
   process.exit(1);
-} finally {
-  await pool.end();
 }
+// Same reason as migrate.js: don't let a hanging pool.end() block startup.
+await Promise.race([pool.end(), new Promise((r) => setTimeout(r, 2000))]);
+process.exit(0);

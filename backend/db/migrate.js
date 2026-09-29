@@ -130,4 +130,8 @@ await pool.query(`
 `);
 
 console.log("migrate: schema up to date");
-await pool.end();
+// Exit explicitly rather than awaiting pool.end(): on some hosts' private
+// networks (Railway) the connection close is never acknowledged, so
+// pool.end() hangs and the next step (seed, then the server) never runs.
+await Promise.race([pool.end(), new Promise((r) => setTimeout(r, 2000))]);
+process.exit(0);
