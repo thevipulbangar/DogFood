@@ -1,4 +1,4 @@
-# Dogfood 2026 — Frontend
+# Judge Graph — Frontend
 
 Self-hostable hackathon submission & judging platform. Next.js 16 · React 19 · TypeScript · Tailwind v4 · Motion · Lucide.
 Runs fully offline: fonts are bundled (`geist`), there are no CDNs, and all data is seeded locally.

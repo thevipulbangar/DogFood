@@ -100,7 +100,7 @@ function Hero() {
           {EVENT.tagline} An open-source, self-hostable hackathon submission and judging platform — from first commit to final score.
         </motion.p>
         <motion.div initial={{ opacity: 0, y: 12 }} animate={introShown ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.8, delay: 1.35, ease: EASE }} className="flex flex-wrap gap-3">
-          <Magnetic><Link href="/signin" className={buttonClass("primary", "lg", "xp-btn")}>Enter Dogfood <ArrowRight className="size-4" /></Link></Magnetic>
+          <Magnetic><Link href="/signin" className={buttonClass("primary", "lg", "xp-btn")}>Enter Judge Graph <ArrowRight className="size-4" /></Link></Magnetic>
           <Magnetic><Link href="/gallery" className={buttonClass("outline", "lg", "xp-btn")}>Explore projects</Link></Magnetic>
         </motion.div>
       </div>

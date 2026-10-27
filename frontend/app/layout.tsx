@@ -7,7 +7,7 @@ import "./globals.css";
 // Fonts ship with the app (geist package) — no runtime font CDN, works offline.
 
 export const metadata: Metadata = {
-  title: { default: "Dogfood 2026 — Build the platform that will judge you", template: "%s · Dogfood 2026" },
+  title: { default: "Judge Graph — Build the platform that will judge you", template: "%s · Judge Graph" },
   description: "Open-source, self-hostable hackathon submission and judging platform.",
 };
 

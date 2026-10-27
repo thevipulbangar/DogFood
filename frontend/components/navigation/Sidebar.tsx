@@ -108,7 +108,7 @@ export function Sidebar({ user }: { user: User }) {
   return (
     <aside className="sticky top-0 hidden h-dvh w-16 shrink-0 flex-col border-r border-line bg-bg md:flex lg:w-60">
       <div className="flex h-14 items-center border-b border-line px-5">
-        <Link href="/" aria-label="Dogfood home">
+        <Link href="/" aria-label="Judge Graph home">
           <Logo className="hidden lg:inline-flex" />
           <LogoMark className="text-fg lg:hidden" />
         </Link>

@@ -30,7 +30,7 @@ export function ErrorState({ title = "Could not load this view", body, onRetry, 
       code="ERR · LOCAL API UNREACHABLE"
       title={title}
       className={className}
-      body={body ?? "The local instance did not respond. Your data is safe on disk — check that the Dogfood service is running, then retry."}
+      body={body ?? "The local instance did not respond. Your data is safe on disk — check that the Judge Graph service is running, then retry."}
       action={onRetry && <Button onClick={onRetry}><RotateCw className="size-3" />Retry</Button>}
     />
   );

@@ -91,7 +91,7 @@ export function Loader() {
         {/* wordmark */}
         <motion.p className="relative whitespace-nowrap font-sans text-[13px] font-medium tracking-[0.42em] text-[#ecf0f1] [padding-left:0.42em]"
           animate={open ? { opacity: 0, filter: "blur(4px)" } : { opacity: 1, filter: "blur(0px)" }} transition={{ duration: 0.5 }}>
-          DOGFOOD
+          JUDGE GRAPH
         </motion.p>
       </div>
 

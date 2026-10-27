@@ -83,7 +83,7 @@ export function Hero() {
 
           <div className="flex flex-wrap gap-3">
             <Magnetic>
-              <Link href="/signin" className={buttonClass("primary", "lg")}>Enter Dogfood <ArrowRight className="size-4" /></Link>
+              <Link href="/signin" className={buttonClass("primary", "lg")}>Enter Judge Graph <ArrowRight className="size-4" /></Link>
             </Magnetic>
             <Magnetic>
               <Link href="/gallery" className={buttonClass("outline", "lg")}>Explore projects</Link>

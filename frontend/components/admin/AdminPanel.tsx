@@ -342,7 +342,7 @@ function Api() {
       </Panel>
       <Panel title="Webhooks" meta="HMAC-SHA256 SIGNED">
         <ul className="space-y-2 font-mono text-[12px]">
-          {[["hooks.local/discord", "submission.locked, results.published", "200"], ["ci.local/dogfood", "score.submitted", "200"], ["matrix.local/announce", "results.published", "—"]].map(([u, ev, s]) => (
+          {[["hooks.local/discord", "submission.locked, results.published", "200"], ["ci.local/judge-graph", "score.submitted", "200"], ["matrix.local/announce", "results.published", "—"]].map(([u, ev, s]) => (
             <li key={u} className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-line px-3 py-2.5">
               <Webhook className="size-3.5 text-muted" /><span className="text-fg">{u}</span><span className="text-muted">{ev}</span>
               <span className={cn("ml-auto", s === "200" ? "text-ok" : "text-muted")}>{s === "200" ? "● 200 OK" : "○ IDLE"}</span>
@@ -357,8 +357,8 @@ function Api() {
 function System() {
   const toast = useToast();
   const services = [
-    { k: "dogfood-api", v: "healthy · :8080", icon: Server },
-    { k: "dogfood-web", v: "healthy · :3000", icon: Server },
+    { k: "judge-graph-api", v: "healthy · :8080", icon: Server },
+    { k: "judge-graph-web", v: "healthy · :3000", icon: Server },
     { k: "database", v: "SQLite · 18.4 MB · WAL", icon: Database },
     { k: "storage", v: "./data/uploads · 212 MB", icon: HardDrive },
   ];

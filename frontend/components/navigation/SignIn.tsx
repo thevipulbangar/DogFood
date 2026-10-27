@@ -56,7 +56,7 @@ export function SignIn() {
         <div className="mx-auto w-full max-w-[440px]">
           <Link href="/" className="mb-12 inline-block lg:hidden"><Logo /></Link>
           <p className="label">Authentication</p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">Sign in to Dogfood</h2>
+          <h2 className="mt-2 text-3xl font-semibold tracking-[-0.03em]">Sign in to Judge Graph</h2>
           <p className="mt-2 text-[14px] text-muted">Accounts are stored on this instance. Nothing leaves your network.</p>
 
           <form onSubmit={submit} className="mt-8 space-y-4" noValidate>

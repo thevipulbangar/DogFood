@@ -1,4 +1,4 @@
-# Dogfood 2026 — Hackathon Submission & Judging Platform
+# Judge Graph — Hackathon Submission & Judging Platform
 
 An open-source, self-hostable platform for running a hackathon end to end:
 registration, team formation, project submissions, and (soon) judging. Built

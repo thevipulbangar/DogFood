@@ -32,7 +32,7 @@ export function BootSequence({ onDone }: { onDone: () => void }) {
   return (
     <motion.div
       role="status"
-      aria-label="Loading Dogfood"
+      aria-label="Loading Judge Graph"
       className="fixed inset-0 z-[90] flex flex-col items-center justify-center overflow-hidden bg-[#050505]"
       exit={{ opacity: 0, filter: "blur(6px)", scale: 1.02 }}
       transition={{ duration: 0.55, ease: [0.76, 0, 0.24, 1] }}
@@ -43,7 +43,7 @@ export function BootSequence({ onDone }: { onDone: () => void }) {
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="relative flex flex-col items-center">
         <LogoMark size={36} className="text-fg" />
-        <p className="mt-6 font-mono text-[28px] font-semibold tracking-[0.35em] text-fg sm:text-[34px]">DOGFOOD</p>
+        <p className="mt-6 font-mono text-[28px] font-semibold tracking-[0.2em] text-fg sm:text-[34px]">JUDGE GRAPH</p>
         <p className="label mt-2">{EVENT.id} · {EVENT.version} · {EVENT.instance}</p>
       </motion.div>
 
