@@ -1,6 +1,11 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  redirect(`/gallery/${id}`);
+import { use } from "react";
+import { notFound } from "next/navigation";
+import { RealProjectDetail } from "@/components/projects/RealProjectDetail";
+
+export default function Page({ params }: { params: Promise<{ id: string }> }) {
+  const id = Number(use(params).id);
+  if (!Number.isFinite(id)) notFound();
+  return <RealProjectDetail id={id} base="/projects" />;
 }

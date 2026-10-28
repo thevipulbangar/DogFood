@@ -118,7 +118,7 @@ function ParticipantDashboard({ user }: { user: User }) {
         <section className="mt-10">
           <div className="mb-4 flex items-end justify-between">
             <div><p className="label">From the gallery</p><h2 className="mt-1 text-xl font-semibold tracking-tight">Recently submitted</h2></div>
-            <Link href="/gallery" className="label flex items-center gap-1 hover:text-fg">All projects <ArrowRight className="size-3" /></Link>
+            <Link href="/projects" className="label flex items-center gap-1 hover:text-fg">All projects <ArrowRight className="size-3" /></Link>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {recent.map((p) => (
@@ -174,7 +174,7 @@ function OrganizerDashboard({ user }: { user: User }) {
           { k: "Events", v: events.length, href: "/admin" },
           { k: "Teams", v: teams.length, href: "/teams" },
           { k: "Participants", v: participants },
-          { k: "Submitted", v: submitted, delta: `${drafting} draft · ${notStarted} not started`, href: "/gallery" },
+          { k: "Submitted", v: submitted, delta: `${drafting} draft · ${notStarted} not started`, href: "/projects" },
         ]} />
         <p className="mt-3 font-mono text-[10.5px] text-muted">Judging progress: <Link href="/judging" className="underline underline-offset-4 hover:text-fg">see live status →</Link></p>
       </div>

@@ -13,7 +13,7 @@ import { EmptyState, ErrorState } from "@/components/ui/States";
  * richer staff-facing Gallery component (still on mock data — see
  * lib/data.ts), this only shows fields the API actually returns.
  */
-export function RealGallery() {
+export function RealGallery({ base = "/gallery" }: { base?: string }) {
   const [items, setItems] = useState<Awaited<ReturnType<typeof api.getGallery>> | null>(null);
   const [error, setError] = useState<string>();
   const [q, setQ] = useState("");
@@ -69,7 +69,7 @@ export function RealGallery() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((p) => (
-            <Link key={p.id} href={`/gallery/${p.id}`} className="block">
+            <Link key={p.id} href={`${base}/${p.id}`} className="block">
               <Panel title={p.title || "Untitled project"} action={p.track ? <Badge tone="accent">{p.track}</Badge> : undefined} className="h-full transition-colors hover:border-accent/50">
                 <p className="line-clamp-3 text-[13.5px] text-fg-2">{p.description}</p>
                 <dl className="mt-4 space-y-1 border-t border-line pt-3 font-mono text-[11px] text-muted">

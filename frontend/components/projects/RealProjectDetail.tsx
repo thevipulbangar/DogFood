@@ -13,7 +13,7 @@ import { ErrorState } from "@/components/ui/States";
  * Replaces the old mock ProjectDetail component for the public route —
  * only fields the API actually returns are shown.
  */
-export function RealProjectDetail({ id }: { id: number }) {
+export function RealProjectDetail({ id, base = "/gallery" }: { id: number; base?: string }) {
   const [item, setItem] = useState<GalleryDetail | null | "not-found">(null);
   const [error, setError] = useState<string>();
 
@@ -42,14 +42,14 @@ export function RealProjectDetail({ id }: { id: number }) {
         <p className="label">404</p>
         <h1 className="mt-2 text-2xl font-semibold">Project not found</h1>
         <p className="mt-2 text-[13.5px] text-fg-2">It may still be a draft, or the link is wrong.</p>
-        <Link href="/gallery" className="mt-6 inline-flex items-center gap-1.5 text-[13px] hover:text-accent"><ArrowLeft className="size-3.5" />Back to gallery</Link>
+        <Link href={base} className="mt-6 inline-flex items-center gap-1.5 text-[13px] hover:text-accent"><ArrowLeft className="size-3.5" />Back to gallery</Link>
       </div>
     );
   }
 
   return (
     <div>
-      <Link href="/gallery" className="label flex items-center gap-1.5 hover:text-fg"><ArrowLeft className="size-3" />Projects</Link>
+      <Link href={base} className="label flex items-center gap-1.5 hover:text-fg"><ArrowLeft className="size-3" />Projects</Link>
 
       <header className="mt-6 flex flex-wrap items-start justify-between gap-4">
         <div>
