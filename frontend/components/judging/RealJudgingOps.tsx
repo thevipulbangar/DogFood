@@ -7,6 +7,7 @@ import { Badge, Button, Panel, Skeleton, buttonClass, fieldClass } from "@/compo
 import { EmptyState, ErrorState } from "@/components/ui/States";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
+import { MathStatsPanel } from "./MathPanels";
 
 type EventRow = { id: number; name: string };
 type DraftCriterion = { key: string; name: string; description: string; weight: string };
@@ -125,6 +126,7 @@ export function RealJudgingOps() {
   const [error, setError] = useState<string>();
   const [assigning, setAssigning] = useState(false);
   const [loadingResults, setLoadingResults] = useState(false);
+  const [mathRefresh, setMathRefresh] = useState(0);
 
   useEffect(() => {
     api
@@ -157,6 +159,7 @@ export function RealJudgingOps() {
       const res = await api.assignJudges(eventId, 3);
       toast({ tone: "ok", title: "Judges assigned", body: `${res.assignments_created ?? 0} new assignment(s) created.` });
       loadResults(eventId);
+      setMathRefresh((n) => n + 1);
     } catch (err) {
       toast({ tone: "warn", title: "Assignment failed", body: err instanceof Error ? err.message : undefined });
     } finally {
@@ -182,7 +185,7 @@ export function RealJudgingOps() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Judging</h1>
-          <p className="text-sm text-white/60">Round-robin assignment, live normalized results, CSV export.</p>
+          <p className="text-sm text-white/60">Bipartite-matching assignment, live normalized results, CSV export.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={runAssignment} disabled={assigning}>
@@ -201,6 +204,8 @@ export function RealJudgingOps() {
       </div>
 
       {eventId !== null && <RubricEditor eventId={eventId} />}
+
+      {eventId !== null && <MathStatsPanel eventId={eventId} refresh={mathRefresh} />}
 
       <Panel className="overflow-x-auto p-0">
         {loadingResults || results === null ? (

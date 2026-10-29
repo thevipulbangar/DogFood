@@ -7,6 +7,7 @@ import type { User } from "@/lib/session";
 import { Badge, Button, Panel, Skeleton } from "@/components/ui/primitives";
 import { EmptyState, ErrorState } from "@/components/ui/States";
 import { useToast } from "@/components/ui/Toast";
+import { EliminationRounds } from "@/components/judging/MathPanels";
 
 type EventRow = { id: number; name: string };
 
@@ -86,6 +87,8 @@ export function RealResults({ user }: { user: User }) {
           )}
         </Panel>
       )}
+
+      {staff && eventId !== null && <EliminationRounds eventId={eventId} />}
 
       <Panel
         title="Community vote"

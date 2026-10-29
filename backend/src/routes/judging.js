@@ -3,6 +3,10 @@ import { pool } from "../db.js";
 import { requireAuth, requireRole } from "../auth.js";
 import { asyncHandler } from "../asyncHandler.js";
 import { logAudit } from "../audit.js";
+import {
+  choose, factorial, derangementsIE, derangementsRec, validPanels, workloadCap,
+  roundCount, eliminationRounds, planAssignment, colourSlots, checkAssignment,
+} from "../discrete.js";
 
 export const judgingRouter = Router();
 
@@ -75,18 +79,49 @@ judgingRouter.get(
 
 // ── Assignment (organizer/admin) ───────────────────────────────────────
 
-// Round-robin: list every judge, list every submitted (non-draft)
-// submission for the event, and hand out judges_per_submission distinct
-// judges to each submission, cycling through the judge list. Safe to call
-// more than once — it skips any (judge, submission) pair that's already
-// assigned (UNIQUE constraint + ON CONFLICT DO NOTHING), so re-running
-// after adding a late judge only fills the gaps instead of duplicating.
+// Everything the assignment maths needs for one event: judge ids, submitted
+// project ids, conflict pairs (a judge who is a member of the project's team)
+// and the pairs that already exist.
+async function assignmentInput(eventId) {
+  const { rows: judges } = await pool.query("SELECT id FROM users WHERE role = 'judge' ORDER BY id");
+  const { rows: projects } = await pool.query(
+    `SELECT submissions.id FROM submissions
+     JOIN teams ON teams.id = submissions.team_id
+     WHERE teams.event_id = $1 AND submissions.is_draft = false
+     ORDER BY submissions.id`,
+    [eventId]
+  );
+  const { rows: conflictRows } = await pool.query(
+    `SELECT team_members.user_id AS judge_id, submissions.id AS submission_id
+     FROM team_members
+     JOIN submissions ON submissions.team_id = team_members.team_id
+     JOIN teams ON teams.id = submissions.team_id
+     WHERE teams.event_id = $1`,
+    [eventId]
+  );
+  const { rows: existing } = await pool.query(
+    "SELECT judge_id, submission_id FROM judge_assignments WHERE event_id = $1",
+    [eventId]
+  );
+  return {
+    judges: judges.map((j) => j.id),
+    projects: projects.map((p) => p.id),
+    conflicts: new Set(conflictRows.map((c) => `${c.judge_id}:${c.submission_id}`)),
+    existing,
+  };
+}
+
+// Bipartite matching (see src/discrete.js): every submitted project gets
+// judges_per_submission distinct judges, nobody judges their own team, and
+// no judge goes over the pigeonhole workload cap ⌈P·k/J⌉. Safe to call more
+// than once — existing pairs are kept and only the gaps are filled.
+// `round` shifts the modular rotation so later rounds pick different judges.
 judgingRouter.post(
   "/assign",
   requireAuth,
   requireRole("organizer", "admin"),
   asyncHandler(async (req, res) => {
-    const { event_id, judges_per_submission = 3 } = req.body ?? {};
+    const { event_id, judges_per_submission = 3, round = 0 } = req.body ?? {};
     if (!event_id) return res.status(400).json({ error: "event_id is required" });
 
     const { rows: rubricRows } = await pool.query(
@@ -99,40 +134,27 @@ judgingRouter.post(
       });
     }
 
-    const { rows: judges } = await pool.query(
-      "SELECT id FROM users WHERE role = 'judge' ORDER BY id"
-    );
+    const input = await assignmentInput(event_id);
+    const { judges, projects: submissions } = input;
     if (judges.length === 0) {
       return res.status(400).json({ error: "no judges exist to assign" });
     }
 
-    const { rows: submissions } = await pool.query(
-      `SELECT submissions.id FROM submissions
-       JOIN teams ON teams.id = submissions.team_id
-       WHERE teams.event_id = $1 AND submissions.is_draft = false
-       ORDER BY submissions.id`,
-      [event_id]
-    );
-
     const n = Math.min(judges_per_submission, judges.length);
-    let cursor = 0;
+    const { pairs, cap } = planAssignment({ ...input, k: n, round: Number(round) || 0 });
     const created = [];
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      for (const submission of submissions) {
-        for (let k = 0; k < n; k++) {
-          const judge = judges[(cursor + k) % judges.length];
-          const { rows } = await client.query(
-            `INSERT INTO judge_assignments (event_id, judge_id, submission_id)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (judge_id, submission_id) DO NOTHING
-             RETURNING *`,
-            [event_id, judge.id, submission.id]
-          );
-          if (rows[0]) created.push(rows[0]);
-        }
-        cursor += n; // rotate the starting judge so load stays balanced
+      for (const pair of pairs) {
+        const { rows } = await client.query(
+          `INSERT INTO judge_assignments (event_id, judge_id, submission_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (judge_id, submission_id) DO NOTHING
+           RETURNING *`,
+          [event_id, pair.judge_id, pair.submission_id]
+        );
+        if (rows[0]) created.push(rows[0]);
       }
       await client.query("COMMIT");
     } catch (err) {
@@ -150,6 +172,7 @@ judgingRouter.post(
       submissions: submissions.length,
       judges: judges.length,
       judges_per_submission: n,
+      workload_cap: cap,
       assignments_created: created.length,
     });
   })
@@ -193,7 +216,17 @@ judgingRouter.get(
        ORDER BY judge_assignments.id`,
       [req.user.id]
     );
-    res.json(rows);
+    // Time slot = colour of the project in that event's "shares a judge" graph.
+    const { rows: all } = await pool.query(
+      `SELECT event_id, judge_id, submission_id FROM judge_assignments
+       WHERE event_id IN (SELECT event_id FROM judge_assignments WHERE judge_id = $1)`,
+      [req.user.id]
+    );
+    const slots = new Map();
+    for (const eventId of new Set(all.map((a) => a.event_id))) {
+      for (const [p, c] of colourSlots(all.filter((a) => a.event_id === eventId))) slots.set(p, c);
+    }
+    res.json(rows.map((r) => ({ ...r, slot: slots.get(r.submission_id) ?? null })));
   })
 );
 
@@ -452,6 +485,53 @@ judgingRouter.get(
     const { event_id } = req.query;
     if (!event_id) return res.status(400).json({ error: "event_id is required" });
     res.json(await computeResults(event_id));
+  })
+);
+
+// ── Discrete maths summary (organizer/admin) ────────────────────────────
+// One place that shows all six MM0705 units working on this event's data.
+judgingRouter.get(
+  "/math",
+  requireAuth,
+  requireRole("organizer", "admin"),
+  asyncHandler(async (req, res) => {
+    const { event_id } = req.query;
+    const k0 = Number(req.query.k ?? 3);
+    if (!event_id) return res.status(400).json({ error: "event_id is required" });
+
+    const { judges, projects, conflicts, existing } = await assignmentInput(event_id);
+    const J = judges.length, P = projects.length, k = Math.min(k0, J);
+    const cap = workloadCap(P, k, J);
+    const conflictsPer = projects.map((p) => judges.filter((j) => conflicts.has(`${j}:${p}`)).length);
+    const ranked = (await computeResults(event_id)).map((r) => ({ submission_id: r.submission_id, title: r.title, team_name: r.team_name }));
+    const slots = colourSlots(existing);
+
+    res.json({
+      judges: J, projects: P, k,
+      counting: {
+        panels_per_project: choose(J, k).toString(),            // C(J,k)
+        possible_rankings: factorial(P).toString(),             // P!
+        possible_assignments: (choose(J, k) ** BigInt(P)).toString(), // C(J,k)^P
+      },
+      combinatorics: {
+        conflicts: conflicts.size,
+        // inclusion–exclusion, worst-case project
+        min_valid_panels: (P ? conflictsPer.map((c) => validPanels(J, c, k)).reduce((a, b) => (b < a ? b : a)) : 0n).toString(),
+        derangements_of_judges: derangementsIE(J).toString(),    // D(J)
+        workload_cap: cap,                                       // ⌈P·k/J⌉
+      },
+      recurrences: {
+        derangements_recurrence_matches: derangementsIE(J) === derangementsRec(J),
+        elimination_round_count: roundCount(ranked.length),      // ⌈log₂ n⌉
+        elimination_rounds: eliminationRounds(ranked),
+      },
+      modular: { rule: "judge index = (i·k + round + t) mod J", judges: J },
+      graph: {
+        assignments: existing.length,
+        time_slots: Math.max(0, ...slots.values()),
+      },
+      logic: checkAssignment({ pairs: existing, projects, k, cap, conflicts }),
+    });
   })
 );
 

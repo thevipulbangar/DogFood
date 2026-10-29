@@ -43,8 +43,19 @@ export type JudgeAssignment = {
   id: number; status: "pending" | "completed"; assigned_at: string;
   submission_id: number; title: string | null; description: string | null;
   track: string | null; repo_url: string | null; demo_url: string | null;
+  slot: number | null;
 };
 export type ScoreInput = { criterion_id: number; raw_score: number; notes?: string };
+export type RankedProject = { submission_id: number; title: string; team_name: string };
+export type MathStats = {
+  judges: number; projects: number; k: number;
+  counting: { panels_per_project: string; possible_rankings: string; possible_assignments: string };
+  combinatorics: { conflicts: number; min_valid_panels: string; derangements_of_judges: string; workload_cap: number };
+  recurrences: { derangements_recurrence_matches: boolean; elimination_round_count: number; elimination_rounds: RankedProject[][] };
+  modular: { rule: string; judges: number };
+  graph: { assignments: number; time_slots: number };
+  logic: { every_project_covered: boolean; no_conflicts: boolean; within_workload_cap: boolean; no_duplicates: boolean };
+};
 export type ResultRow = { submission_id: number; title: string; team_name: string; judges_completed: number; raw_avg: number; normalized_avg: number; fully_normalized: boolean };
 
 export type VotingFeedItem = {
@@ -146,6 +157,8 @@ export const api = {
     request(`/api/judging/assignments/${assignmentId}/complete`, { method: "POST" }),
   getResults: (event_id: number): Promise<ResultRow[]> =>
     request(`/api/judging/results?event_id=${event_id}`),
+  getMath: (event_id: number, k = 3): Promise<MathStats> =>
+    request(`/api/judging/math?event_id=${event_id}&k=${k}`),
   // Browser <a href> downloads can't attach the Authorization header, so
   // CSV export fetches the file with the token attached and triggers the
   // download client-side instead of linking straight to the API.

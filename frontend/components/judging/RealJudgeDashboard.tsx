@@ -62,7 +62,10 @@ export function RealJudgeDashboard({ user }: { user: User }) {
                     <span className="block truncate text-[14.5px] font-medium">{a.title || "Untitled project"}</span>
                     <span className="block truncate text-[12px] text-muted">{a.track}</span>
                   </span>
-                  <Badge tone={a.status === "completed" ? "ok" : "warn"} dot>{a.status === "completed" ? "Submitted" : "Not started"}</Badge>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {a.slot != null && <Badge tone="steel">Slot {a.slot}</Badge>}
+                    <Badge tone={a.status === "completed" ? "ok" : "warn"} dot>{a.status === "completed" ? "Submitted" : "Not started"}</Badge>
+                  </span>
                 </Link>
               </li>
             ))}
